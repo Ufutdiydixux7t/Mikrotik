@@ -1,0 +1,250 @@
+package com.example.mikrotik.presentation.login
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.mikrotik.presentation.ui.theme.AppIcons
+import java.net.HttpURLConnection
+import java.net.URL
+
+private val DeepGreenHeader = Color(0xFF0F3822)
+private val RichGreenButton = Color(0xFF00796B)
+private val PageBackground = Color(0xFFE6F0EC)
+private val SeamlessCardBg = Color(0xFFFFFFFF)
+private val WatermarkLineColor = Color(0xFFC5E0D6)
+
+@Composable
+fun LoginScreen(
+    serverUrl: String = "http://192.168.43.1:8080",
+    onStartServerClick: () -> Unit = {},
+    isServerRunning: Boolean = false
+) {
+    var voucherCode by remember { mutableStateOf("") }
+    var loginResult by remember { mutableStateOf<String?>(null) }
+    var isSuccess by remember { mutableStateOf(false) }
+
+    var testResult by remember { mutableStateOf<String?>(null) }
+    var isTesting by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(PageBackground)
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        // Top Header
+        Column(
+            modifier = Modifier.padding(top = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = AppIcons.AntennaHotspot,
+                contentDescription = "Logo",
+                tint = RichGreenButton,
+                modifier = Modifier.size(52.dp)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "AL-MADDI NET",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = DeepGreenHeader,
+                letterSpacing = 1.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "رابط السيرفر المحلي: $serverUrl",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = RichGreenButton
+            )
+        }
+
+        // Center Login Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, WatermarkLineColor, RoundedCornerShape(20.dp)),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = AppIcons.WifiSignal,
+                    contentDescription = "Wifi",
+                    tint = RichGreenButton,
+                    modifier = Modifier.size(32.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "تسجيل الدخول",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = DeepGreenHeader
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "أدخل البطاقة للاتصال بالإنترنت",
+                    fontSize = 13.sp,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = voucherCode,
+                    onValueChange = { voucherCode = it },
+                    placeholder = {
+                        Text(
+                            text = "أدخل الكرت هنا",
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                            color = Color.Gray
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = AppIcons.CreditCard,
+                            contentDescription = "Card",
+                            tint = RichGreenButton
+                        )
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = RichGreenButton,
+                        unfocusedBorderColor = WatermarkLineColor,
+                        focusedContainerColor = Color(0xFFFAFCFB),
+                        unfocusedContainerColor = Color(0xFFFAFCFB)
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = {
+                        if (voucherCode.isBlank()) {
+                            loginResult = "يرجى إدخال كود الكرت."
+                            isSuccess = false
+                        } else if (voucherCode == "12345" || voucherCode.startsWith("MDI")) {
+                            loginResult = "تم الاتصال بنجاح!\nالبيانات المتبقية: 4.8 GB | المدة: 29 يوم"
+                            isSuccess = true
+                        } else {
+                            loginResult = "كود البطاقة غير صالح أو منتهي الصلاحية."
+                            isSuccess = false
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = RichGreenButton)
+                ) {
+                    Text(
+                        text = "اتصال",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+
+                if (loginResult != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = loginResult ?: "",
+                        color = if (isSuccess) Color(0xFF2E7D32) else Color(0xFFC62828),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Connection Test Button (Ping Test)
+                OutlinedButton(
+                    onClick = {
+                        isTesting = true
+                        testResult = "جاري فحص الاتصال بالسيرفر..."
+                        Thread {
+                            try {
+                                val url = URL(serverUrl)
+                                val connection = url.openConnection() as HttpURLConnection
+                                connection.connectTimeout = 3000
+                                connection.readTimeout = 3000
+                                connection.requestMethod = "GET"
+                                val responseCode = connection.responseCode
+                                testResult = if (responseCode == 200) {
+                                    "نجح الاتصال بالسيرفر محلياً! (HTTP 200 OK)"
+                                } else {
+                                    "استجاب السيرفر برمز: $responseCode"
+                                }
+                            } catch (e: Exception) {
+                                testResult = "فشل الاتصال: ${e.message}"
+                            } finally {
+                                isTesting = false
+                            }
+                        }.start()
+                    },
+                    modifier = Modifier.fillMaxWidth().height(42.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = RichGreenButton)
+                ) {
+                    Text(
+                        text = if (isTesting) "جاري الفحص..." else "اختبار الاتصال بالسيرفر (Ping Test)",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                if (testResult != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = testResult ?: "",
+                        color = DeepGreenHeader,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+
+        // Footer
+        Column(
+            modifier = Modifier.padding(bottom = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            HorizontalDivider(
+                modifier = Modifier.width(120.dp).padding(bottom = 6.dp),
+                color = WatermarkLineColor,
+                thickness = 1.dp
+            )
+            Text(
+                text = "Powered by Hotspot",
+                fontSize = 12.sp,
+                color = Color.Gray
+            )
+        }
+    }
+}
