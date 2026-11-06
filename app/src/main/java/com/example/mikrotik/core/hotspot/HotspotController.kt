@@ -83,6 +83,7 @@ class HotspotController @Inject constructor(
             if (activeIface != null) {
                 iptablesManager.removeCaptivePortalRedirect(activeIface, 8080)
                 iptablesManager.removeCaptiveGate(activeIface)
+                iptablesManager.removeClientRouting(activeIface)
             }
             captivePortalServer.stopServer()
             HotspotState.Disabled
@@ -94,6 +95,7 @@ class HotspotController @Inject constructor(
     private suspend fun configureCaptivePortal(interfaceName: String): Boolean {
         if (!iptablesManager.installCaptiveGate(interfaceName)) return false
         if (!iptablesManager.applyCaptivePortalRedirect(interfaceName, 8080)) return false
+        if (!iptablesManager.installClientRouting(interfaceName)) return false
         captivePortalServer.startServer()
         return captivePortalServer.isServerRunning()
     }

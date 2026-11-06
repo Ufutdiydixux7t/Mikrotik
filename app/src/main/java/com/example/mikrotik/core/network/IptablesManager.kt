@@ -71,6 +71,69 @@ class IptablesManager @Inject constructor(
         return v4 && v6 && nat
     }
 
+    /** Enables IPv4 forwarding and NAT only for clients in the detected hotspot subnet. */
+    suspend fun installClientRouting(interfaceName: String): Boolean {
+        if (!interfacePattern.matches(interfaceName)) return false
+        val subnet = findIpv4Subnet(interfaceName) ?: return false
+        if (!rootShellManager.executeCommand("echo 1 > /proc/sys/net/ipv4/ip_forward").isSuccess) return false
+
+        val natChain = "MM_CAPTIVE_M"
+        if (!ensureChain("iptables -t nat", natChain)) return false
+        val masquerade = "iptables -t nat -C $natChain -s $subnet -j MASQUERADE"
+        if (!rootShellManager.executeCommand(masquerade).isSuccess &&
+            !rootShellManager.executeCommand("iptables -t nat -A $natChain -s $subnet -j MASQUERADE").isSuccess
+        ) return false
+        val natJump = "iptables -t nat -C POSTROUTING -j $natChain"
+        if (!rootShellManager.executeCommand(natJump).isSuccess &&
+            !rootShellManager.executeCommand("iptables -t nat -I POSTROUTING 1 -j $natChain").isSuccess
+        ) return false
+
+        val replyChain = "MM_CAPTIVE_R"
+        if (!ensureChain("iptables", replyChain)) return false
+        val replyRule = "iptables -C $replyChain -d $subnet -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT"
+        if (!rootShellManager.executeCommand(replyRule).isSuccess &&
+            !rootShellManager.executeCommand("iptables -I $replyChain 1 -d $subnet -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT").isSuccess
+        ) return false
+        val replyJump = "iptables -C FORWARD -o $interfaceName -j $replyChain"
+        if (!rootShellManager.executeCommand(replyJump).isSuccess &&
+            !rootShellManager.executeCommand("iptables -I FORWARD 1 -o $interfaceName -j $replyChain").isSuccess
+        ) return false
+        return true
+    }
+
+    private suspend fun ensureChain(binary: String, chain: String): Boolean {
+        val created = rootShellManager.executeCommand("$binary -N $chain")
+        return created.isSuccess || rootShellManager.executeCommand("$binary -S $chain").isSuccess
+    }
+
+    private suspend fun findIpv4Subnet(interfaceName: String): String? {
+        val result = rootShellManager.executeCommand("ip -o -4 addr show dev $interfaceName")
+        val cidr = result.stdout.asSequence()
+            .flatMap { Regex("(?:^|\\s)inet\\s+([0-9.]+/[0-9]{1,2})").findAll(it) }
+            .map { it.groupValues[1] }
+            .firstOrNull() ?: return null
+        val address = cidr.substringBefore('/').split('.').map { it.toIntOrNull() ?: return null }
+        val prefix = cidr.substringAfter('/').toIntOrNull()?.takeIf { it in 1..32 } ?: return null
+        if (address.size != 4 || address.any { it !in 0..255 }) return null
+        val ip = address.fold(0L) { acc, octet -> (acc shl 8) or octet.toLong() }
+        val mask = (0xFFFF_FFFFL shl (32 - prefix)) and 0xFFFF_FFFFL
+        val network = ip and mask
+        val networkText = (3 downTo 0).joinToString(".") { shift ->
+            ((network shr (shift * 8)) and 0xFF).toString()
+        }
+        return "$networkText/$prefix"
+    }
+
+    suspend fun removeClientRouting(interfaceName: String) {
+        if (!interfacePattern.matches(interfaceName)) return
+        rootShellManager.executeCommand("iptables -D FORWARD -o $interfaceName -j MM_CAPTIVE_R")
+        rootShellManager.executeCommand("iptables -F MM_CAPTIVE_R")
+        rootShellManager.executeCommand("iptables -X MM_CAPTIVE_R")
+        rootShellManager.executeCommand("iptables -t nat -D POSTROUTING -j MM_CAPTIVE_M")
+        rootShellManager.executeCommand("iptables -t nat -F MM_CAPTIVE_M")
+        rootShellManager.executeCommand("iptables -t nat -X MM_CAPTIVE_M")
+    }
+
     suspend fun removeCaptivePortalRedirect(interfaceName: String, localPort: Int = 8080) {
         if (!interfacePattern.matches(interfaceName)) return
         rootShellManager.executeCommand("iptables -t nat -D PREROUTING -i $interfaceName -j $natChain")
