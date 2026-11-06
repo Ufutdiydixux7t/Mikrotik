@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import com.example.mikrotik.presentation.dashboard.DashboardViewModel
 import com.example.mikrotik.presentation.diagnostics.DiagnosticsViewModel
 import com.example.mikrotik.presentation.home.HomeViewModel
 import com.example.mikrotik.presentation.main.MainScreen
@@ -18,6 +19,7 @@ class MainActivity : ComponentActivity() {
     private val homeViewModel: HomeViewModel by viewModels()
     private val diagnosticsViewModel: DiagnosticsViewModel by viewModels()
     private val voucherViewModel: VoucherViewModel by viewModels()
+    private val dashboardViewModel: DashboardViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,7 +29,8 @@ class MainActivity : ComponentActivity() {
                 MainScreen(
                     homeViewModel = homeViewModel,
                     diagnosticsViewModel = diagnosticsViewModel,
-                    voucherViewModel = voucherViewModel
+                    voucherViewModel = voucherViewModel,
+                    dashboardViewModel = dashboardViewModel
                 )
             }
         }

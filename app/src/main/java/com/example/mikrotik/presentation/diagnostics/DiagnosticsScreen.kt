@@ -18,11 +18,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mikrotik.core.root.RootStatus
 import com.example.mikrotik.core.root.SystemDiagnosticReport
 import com.example.mikrotik.presentation.login.LoginScreen
-import com.example.mikrotik.presentation.login.LoginViewModel
 import com.example.mikrotik.presentation.ui.theme.AppIcons
 
 private val DeepGreenHeader = Color(0xFF0F3822)
@@ -98,10 +96,6 @@ fun DiagnosticsScreen(
                     )
                 }
                 SettingsDestination.LoginPage -> {
-                    val loginViewModel: LoginViewModel = viewModel()
-                    val serverUrl by loginViewModel.serverUrl.collectAsState()
-                    val isServerRunning by loginViewModel.isServerRunning.collectAsState()
-
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -115,11 +109,7 @@ fun DiagnosticsScreen(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Box(modifier = Modifier.fillMaxWidth().height(650.dp)) {
-                            LoginScreen(
-                                serverUrl = serverUrl,
-                                onStartServerClick = {},
-                                isServerRunning = isServerRunning
-                            )
+                            LoginScreen()
                         }
                     }
                 }

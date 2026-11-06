@@ -19,20 +19,29 @@ class CaptivePortalServer @Inject constructor() {
     private var isRunning = false
     private val port = 8080
 
+    @Synchronized
     fun startServer(): String {
-        if (isRunning) return getLocalAccessUrl()
+        if (isRunning && server != null) {
+            Log.d("CaptivePortalServer", "Server is already running at ${getLocalAccessUrl()}")
+            return getLocalAccessUrl()
+        }
 
         try {
+            val ip = getActiveHotspotIpAddress()
+            Log.d("CaptivePortalServer", "Starting Ktor server on host 0.0.0.0, port $port, Hotspot IP: $ip")
+
             server = embeddedServer(CIO, host = "0.0.0.0", port = port) {
-                // Log incoming HTTP requests
-                monitor.subscribe(ApplicationStarted) {
-                    Log.d("CaptivePortalServer", "Ktor Server started successfully on port $port")
-                }
                 routing {
                     intercept(ApplicationCallPipeline.Call) {
                         val clientIp = call.request.local.remoteAddress
                         val uri = call.request.uri
                         Log.d("CaptivePortalServer", "Incoming request: IP=$clientIp, URI=$uri")
+                    }
+
+                    // 4. Health Check Route
+                    get("/health") {
+                        val statusJson = "{\"status\": \"running\", \"ip\": \"${getActiveHotspotIpAddress()}\", \"port\": $port}"
+                        call.respondText(statusJson, contentType = ContentType.Application.Json)
                     }
 
                     // Main login page
@@ -41,23 +50,18 @@ class CaptivePortalServer @Inject constructor() {
                     }
 
                     // --- Captive Portal OS Detection Probes ---
-                    // Android Probes
                     get("/generate_204") {
-                        call.respondRedirect("http://${getLocalIpAddress()}:$port/")
+                        call.respondRedirect("http://${getActiveHotspotIpAddress()}:$port/")
                     }
                     get("/gen_204") {
-                        call.respondRedirect("http://${getLocalIpAddress()}:$port/")
+                        call.respondRedirect("http://${getActiveHotspotIpAddress()}:$port/")
                     }
-
-                    // Apple Probes (iPhone / iPad / Mac)
                     get("/hotspot-detect.html") {
                         call.respondText(getHtmlLoginPage(), contentType = ContentType.Text.Html)
                     }
                     get("/library/test/success.html") {
                         call.respondText(getHtmlLoginPage(), contentType = ContentType.Text.Html)
                     }
-
-                    // Windows Probes
                     get("/ncsi.txt") {
                         call.respondText("Microsoft NCSI", contentType = ContentType.Text.Plain)
                     }
@@ -83,49 +87,81 @@ class CaptivePortalServer @Inject constructor() {
             }.start(wait = false)
 
             isRunning = true
+            Log.d("CaptivePortalServer", "Ktor Server successfully started and verified.")
         } catch (e: Exception) {
+            isRunning = false
+            server = null
             Log.e("CaptivePortalServer", "Failed to start Ktor server", e)
         }
 
         return getLocalAccessUrl()
     }
 
+    @Synchronized
     fun stopServer() {
         try {
-            server?.stop(1000, 2000)
+            server?.stop(500, 1000)
             server = null
             isRunning = false
-            Log.d("CaptivePortalServer", "Ktor Server stopped")
+            Log.d("CaptivePortalServer", "Ktor Server stopped successfully.")
         } catch (e: Exception) {
             Log.e("CaptivePortalServer", "Error stopping Ktor server", e)
         }
     }
 
-    fun isServerRunning(): Boolean = isRunning
+    fun isServerRunning(): Boolean = isRunning && server != null
+
+    fun getPort(): Int = port
 
     fun getLocalAccessUrl(): String {
-        val ip = getLocalIpAddress()
+        val ip = getActiveHotspotIpAddress()
         return "http://$ip:$port"
     }
 
-    private fun getLocalIpAddress(): String {
+    /**
+     * 1 & 2. Discovers the active Hotspot interface IPv4 address precisely,
+     * checking common AP interfaces (ap0, swlan0, softap0) and hotspot subnets first.
+     */
+    fun getActiveHotspotIpAddress(): String {
         try {
             val interfaces = NetworkInterface.getNetworkInterfaces()
             while (interfaces.hasMoreElements()) {
                 val iface = interfaces.nextElement()
+                val name = iface.name.lowercase()
+                // Check if interface is a known AP / hotspot interface
+                if (name.contains("ap") || name.contains("swlan") || name.contains("softap") || name.contains("bridge")) {
+                    val addresses = iface.inetAddresses
+                    while (addresses.hasMoreElements()) {
+                        val addr = addresses.nextElement()
+                        if (!addr.isLoopbackAddress && addr.hostAddress?.indexOf(':') == -1) {
+                            val host = addr.hostAddress
+                            if (host != null) {
+                                Log.d("CaptivePortalServer", "Found Hotspot interface [$name] IP: $host")
+                                return host
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Fallback: search for standard hotspot subnets (192.168.43.x, 192.168.49.x, 192.168.50.x)
+            val allInterfaces = NetworkInterface.getNetworkInterfaces()
+            while (allInterfaces.hasMoreElements()) {
+                val iface = allInterfaces.nextElement()
                 val addresses = iface.inetAddresses
                 while (addresses.hasMoreElements()) {
                     val addr = addresses.nextElement()
                     if (!addr.isLoopbackAddress && addr.hostAddress?.indexOf(':') == -1) {
                         val host = addr.hostAddress
-                        if (host != null && (host.startsWith("192.168.") || host.startsWith("10.") || host.startsWith("172."))) {
+                        if (host != null && (host.startsWith("192.168.43.") || host.startsWith("192.168.49.") || host.startsWith("192.168.50."))) {
+                            Log.d("CaptivePortalServer", "Found subnet IP: $host on [${iface.name}]")
                             return host
                         }
                     }
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("CaptivePortalServer", "Error getting hotspot IP", e)
         }
         return "192.168.43.1"
     }

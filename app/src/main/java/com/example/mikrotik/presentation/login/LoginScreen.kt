@@ -1,5 +1,9 @@
 package com.example.mikrotik.presentation.login
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -9,13 +13,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mikrotik.presentation.ui.theme.AppIcons
-import java.net.HttpURLConnection
-import java.net.URL
 
 private val DeepGreenHeader = Color(0xFF0F3822)
 private val RichGreenButton = Color(0xFF00796B)
@@ -25,16 +29,19 @@ private val WatermarkLineColor = Color(0xFFC5E0D6)
 
 @Composable
 fun LoginScreen(
-    serverUrl: String = "http://192.168.43.1:8080",
-    onStartServerClick: () -> Unit = {},
-    isServerRunning: Boolean = false
+    viewModel: LoginViewModel = viewModel()
 ) {
+    val serverUrl by viewModel.serverUrl.collectAsState()
+    val serverIp by viewModel.serverIp.collectAsState()
+    val serverPort by viewModel.serverPort.collectAsState()
+    val isServerRunning by viewModel.isServerRunning.collectAsState()
+    val healthResult by viewModel.healthTestResult.collectAsState()
+
     var voucherCode by remember { mutableStateOf("") }
     var loginResult by remember { mutableStateOf<String?>(null) }
     var isSuccess by remember { mutableStateOf(false) }
 
-    var testResult by remember { mutableStateOf<String?>(null) }
-    var isTesting by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Column(
         modifier = Modifier
@@ -63,16 +70,71 @@ fun LoginScreen(
                 color = DeepGreenHeader,
                 letterSpacing = 1.sp
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "رابط السيرفر المحلي: $serverUrl",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = RichGreenButton
-            )
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Server Info Box
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "حالة السيرفر: ${if (isServerRunning) "يعمل (Running)" else "متوقف"}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isServerRunning) Color(0xFF2E7D32) else Color(0xFFC62828)
+                        )
+                        Text(
+                            text = "المنفذ: $serverPort",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = DeepGreenHeader
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "IP الهوتسبوت: $serverIp",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = DeepGreenHeader
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "الرابط: $serverUrl",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = RichGreenButton
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Copy Link Button
+                    OutlinedButton(
+                        onClick = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            val clip = ClipData.newPlainText("Captive Portal URL", serverUrl)
+                            clipboard.setPrimaryClip(clip)
+                            Toast.makeText(context, "تم نسخ الرابط بنجاح!", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth().height(36.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = RichGreenButton)
+                    ) {
+                        Text(text = "نسخ الرابط", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
         }
 
-        // Center Login Card
+        // Center Login Card (Original Design Preserved)
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -182,48 +244,26 @@ fun LoginScreen(
                 HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Connection Test Button (Ping Test)
+                // Server Health Test Button (/health)
                 OutlinedButton(
-                    onClick = {
-                        isTesting = true
-                        testResult = "جاري فحص الاتصال بالسيرفر..."
-                        Thread {
-                            try {
-                                val url = URL(serverUrl)
-                                val connection = url.openConnection() as HttpURLConnection
-                                connection.connectTimeout = 3000
-                                connection.readTimeout = 3000
-                                connection.requestMethod = "GET"
-                                val responseCode = connection.responseCode
-                                testResult = if (responseCode == 200) {
-                                    "نجح الاتصال بالسيرفر محلياً! (HTTP 200 OK)"
-                                } else {
-                                    "استجاب السيرفر برمز: $responseCode"
-                                }
-                            } catch (e: Exception) {
-                                testResult = "فشل الاتصال: ${e.message}"
-                            } finally {
-                                isTesting = false
-                            }
-                        }.start()
-                    },
-                    modifier = Modifier.fillMaxWidth().height(42.dp),
+                    onClick = { viewModel.testServerHealth() },
+                    modifier = Modifier.fillMaxWidth().height(40.dp),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = RichGreenButton)
                 ) {
                     Text(
-                        text = if (isTesting) "جاري الفحص..." else "اختبار الاتصال بالسيرفر (Ping Test)",
-                        fontSize = 13.sp,
+                        text = "اختبار صحة السيرفر (/health)",
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
-                if (testResult != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                if (healthResult != null) {
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = testResult ?: "",
+                        text = healthResult ?: "",
                         color = DeepGreenHeader,
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         textAlign = TextAlign.Center
                     )
                 }

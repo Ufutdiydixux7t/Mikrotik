@@ -14,6 +14,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.mikrotik.presentation.dashboard.DashboardScreen
+import com.example.mikrotik.presentation.dashboard.DashboardViewModel
 import com.example.mikrotik.presentation.diagnostics.DiagnosticsScreen
 import com.example.mikrotik.presentation.diagnostics.DiagnosticsViewModel
 import com.example.mikrotik.presentation.home.HomeScreen
@@ -41,7 +43,8 @@ enum class BottomTab(val title: String, val icon: ImageVector) {
 fun MainScreen(
     homeViewModel: HomeViewModel,
     diagnosticsViewModel: DiagnosticsViewModel,
-    voucherViewModel: VoucherViewModel
+    voucherViewModel: VoucherViewModel,
+    dashboardViewModel: DashboardViewModel
 ) {
     var currentTab by remember { mutableStateOf(BottomTab.HOME) }
 
@@ -125,10 +128,7 @@ fun MainScreen(
                     VoucherScreen(viewModel = voucherViewModel)
                 }
                 BottomTab.DASHBOARD -> {
-                    PlaceholderTabScreen(
-                        title = "لوحة التحكم",
-                        description = "هذه الشاشة مجهزة لإحصائيات وإدارة النظام في المراحل القادمة."
-                    )
+                    DashboardScreen(viewModel = dashboardViewModel)
                 }
                 BottomTab.SETTINGS -> {
                     DiagnosticsScreen(viewModel = diagnosticsViewModel)

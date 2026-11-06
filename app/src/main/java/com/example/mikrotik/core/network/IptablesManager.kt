@@ -33,4 +33,16 @@ class IptablesManager @Inject constructor(
         rootShellManager.executeCommand("iptables -t nat -D PREROUTING -i $interfaceName -p tcp --dport 80 -j REDIRECT --to-ports $localPort")
         rootShellManager.executeCommand("iptables -t nat -D PREROUTING -i wlan0 -p tcp --dport 80 -j REDIRECT --to-ports $localPort")
     }
+
+    suspend fun blockMacAddress(macAddress: String): Boolean {
+        val cmd = "iptables -A FORWARD -m mac --mac-source $macAddress -j DROP"
+        val res = rootShellManager.executeCommand(cmd)
+        return res.isSuccess
+    }
+
+    suspend fun unblockMacAddress(macAddress: String): Boolean {
+        val cmd = "iptables -D FORWARD -m mac --mac-source $macAddress -j DROP"
+        val res = rootShellManager.executeCommand(cmd)
+        return res.isSuccess
+    }
 }
