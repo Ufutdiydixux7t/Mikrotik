@@ -91,7 +91,7 @@ class CaptivePortalServer @Inject constructor(
                         } else {
                             val now = System.currentTimeMillis()
                             val remoteAddress = call.request.local.remoteAddress
-                            val clientIp = extractIpv4(call.request.origin.remoteHost)
+                            val clientIp = extractIpv4(call.request.local.remoteHost)
                                 ?: extractIpv4(remoteAddress)
                             val client = clientIp?.let { ip ->
                                 val mac = clientDiscoveryManager.findMacAddressForIp(ip)
