@@ -40,7 +40,11 @@
             android:name=".core.service.BandwidthTrackerService"
             android:exported="false"
             android:foregroundServiceType="specialUse"
-            tools:ignore="ForegroundServicePermission" />
+            tools:ignore="ForegroundServicePermission">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Monitoring hotspot client data usage and enforcing voucher limits" />
+        </service>
     </application>
 
 </manifest>

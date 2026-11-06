@@ -107,6 +107,48 @@ class IptablesManager @Inject constructor(
             .filter { tokens -> tokens.size >= 9 && tokens[2].equals("ACCEPT", ignoreCase = true) && matchesDevice(tokens) }
             .sumOf { tokens -> tokens[1].toLongOrNull() ?: 0L }
 
+    /** Resets the per-IP download counter before a newly accepted voucher starts tracking. */
+    suspend fun resetDeviceDownloadCounter(ipAddress: String): Boolean {
+        val octets = ipAddress.split('.')
+        if (octets.size != 4 || octets.any { it.toIntOrNull()?.let { value -> value in 0..255 } != true }) return false
+        if (!rootShellManager.executeCommand("iptables -S MM_CAPTIVE_R").isSuccess) return false
+
+        val rule = "iptables -C MM_CAPTIVE_R -d $ipAddress -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT"
+        if (!rootShellManager.executeCommand(rule).isSuccess) return true
+        return rootShellManager.executeCommand(
+            "iptables -D MM_CAPTIVE_R -d $ipAddress -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT"
+        ).isSuccess
+    }
+
+    /** Clears stale per-device allow-rule counters before authorizing a different voucher. */
+    suspend fun resetDeviceUsageCounters(macAddress: String, ipAddress: String): Boolean {
+        val mac = macAddress.lowercase()
+        val octets = ipAddress.split('.')
+        if (!macPattern.matches(mac) || octets.size != 4 ||
+            octets.any { it.toIntOrNull()?.let { value -> value in 0..255 } != true }
+        ) return false
+
+        val v4 = removeRuleIfPresent(
+            "iptables -C $filterChainV4 -m mac --mac-source $mac -j ACCEPT",
+            "iptables -D $filterChainV4 -m mac --mac-source $mac -j ACCEPT"
+        )
+        val v6 = removeRuleIfPresent(
+            "ip6tables -C $filterChainV6 -m mac --mac-source $mac -j ACCEPT",
+            "ip6tables -D $filterChainV6 -m mac --mac-source $mac -j ACCEPT"
+        )
+        val nat = removeRuleIfPresent(
+            "iptables -t nat -C $natChain -m mac --mac-source $mac -j RETURN",
+            "iptables -t nat -D $natChain -m mac --mac-source $mac -j RETURN"
+        )
+        val download = resetDeviceDownloadCounter(ipAddress)
+        return v4 && v6 && nat && download
+    }
+
+    private suspend fun removeRuleIfPresent(checkCommand: String, deleteCommand: String): Boolean {
+        if (!rootShellManager.executeCommand(checkCommand).isSuccess) return true
+        return rootShellManager.executeCommand(deleteCommand).isSuccess
+    }
+
     /** Enables IPv4 forwarding and NAT only for clients in the detected hotspot subnet. */
     suspend fun installClientRouting(interfaceName: String): Boolean {
         if (!interfacePattern.matches(interfaceName)) return false

@@ -11,6 +11,7 @@ import io.ktor.server.routing.*
 import com.example.mikrotik.core.hotspot.ClientDiscoveryManager
 import com.example.mikrotik.core.network.IptablesManager
 import com.example.mikrotik.data.db.dao.ActiveSessionDao
+import com.example.mikrotik.data.db.dao.BlockedMacDao
 import com.example.mikrotik.data.db.dao.VoucherDao
 import com.example.mikrotik.data.db.entity.ActiveSessionEntity
 import java.net.NetworkInterface
@@ -22,6 +23,7 @@ import javax.inject.Singleton
 class CaptivePortalServer @Inject constructor(
     private val voucherDao: VoucherDao,
     private val activeSessionDao: ActiveSessionDao,
+    private val blockedMacDao: BlockedMacDao,
     private val clientDiscoveryManager: ClientDiscoveryManager,
     private val iptablesManager: IptablesManager
 ) {
@@ -123,10 +125,24 @@ class CaptivePortalServer @Inject constructor(
                                 return@post
                             }
 
+                            if (blockedMacDao.isMacBlocked(client.macAddress)) {
+                                call.respondText(
+                                    getHtmlResultPage("الجهاز محظور", "هذا الجهاز محظور من لوحة التحكم. أزل الحظر أولاً ثم أعد المحاولة.", false),
+                                    contentType = ContentType.Text.Html
+                                )
+                                return@post
+                            }
+
                             val activated = voucherDao.activateVoucherIfValid(code, client.macAddress, now)
                             val voucher = voucherDao.getVoucherByCode(code)
 
                             if (activated > 0 && voucher != null) {
+                                if (!iptablesManager.unblockMacAddress(client.macAddress)) {
+                                    Log.w("CaptivePortalServer", "Could not clear a stale temporary block before voucher login")
+                                }
+                                if (!iptablesManager.resetDeviceUsageCounters(client.macAddress, client.ipAddress)) {
+                                    Log.w("CaptivePortalServer", "Could not reset traffic counters for a new voucher")
+                                }
                                 activeSessionDao.insertOrUpdateSession(
                                     ActiveSessionEntity(
                                         macAddress = client.macAddress,
@@ -154,7 +170,7 @@ class CaptivePortalServer @Inject constructor(
                                     )
                                     return@post
                                 }
-                                call.respondRedirect("http://neverssl.com/")
+                                call.respondRedirect("http://connectivitycheck.gstatic.com/generate_204")
                             } else {
                                 val reason = when {
                                     voucher == null -> "رمز البطاقة غير موجود."
@@ -486,7 +502,7 @@ class CaptivePortalServer @Inject constructor(
 
     private fun getHtmlResultPage(title: String, message: String, isSuccess: Boolean): String {
         val color = if (isSuccess) "#00796B" else "#C62828"
-        val continueUrl = if (isSuccess) "http://neverssl.com/" else "/"
+        val continueUrl = if (isSuccess) "http://connectivitycheck.gstatic.com/generate_204" else "/"
         val continueLabel = if (isSuccess) "فتح الإنترنت" else "العودة"
         val autoRedirect = if (isSuccess) {
             "<script>window.setTimeout(function(){window.location.replace('$continueUrl');},1200);</script>"

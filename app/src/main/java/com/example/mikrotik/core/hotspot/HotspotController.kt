@@ -1,9 +1,16 @@
 package com.example.mikrotik.core.hotspot
 
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.util.Log
+import androidx.core.content.ContextCompat
 import com.example.mikrotik.core.captive.CaptivePortalServer
 import com.example.mikrotik.core.network.IptablesManager
 import com.example.mikrotik.core.root.RootShellManager
+import com.example.mikrotik.core.service.BandwidthTrackerService
 import com.example.mikrotik.domain.model.HotspotState
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -14,8 +21,11 @@ import javax.inject.Singleton
 class HotspotController @Inject constructor(
     private val rootShellManager: RootShellManager,
     private val iptablesManager: IptablesManager,
-    private val captivePortalServer: CaptivePortalServer
+    private val captivePortalServer: CaptivePortalServer,
+    @ApplicationContext private val context: Context
 ) {
+
+    @Volatile private var trackerStartRequested = false
 
     /**
      * Checks if the Wi-Fi Hotspot is currently enabled on the device
@@ -30,6 +40,7 @@ class HotspotController @Inject constructor(
                 HotspotState.Error("نقطة الاتصال تعمل، لكن تعذر تأمينها ببوابة البطاقات على $activeInterface")
             }
         } else {
+            stopBandwidthTracker()
             HotspotState.Disabled
         }
     }
@@ -86,6 +97,7 @@ class HotspotController @Inject constructor(
                 iptablesManager.removeClientRouting(activeIface)
             }
             captivePortalServer.stopServer()
+            stopBandwidthTracker()
             HotspotState.Disabled
         } else {
             HotspotState.Error("Hotspot interface $newIface is still active; security rules remain enabled.")
@@ -97,7 +109,35 @@ class HotspotController @Inject constructor(
         if (!iptablesManager.applyCaptivePortalRedirect(interfaceName, 8080)) return false
         if (!iptablesManager.installClientRouting(interfaceName)) return false
         captivePortalServer.startServer()
-        return captivePortalServer.isServerRunning()
+        return captivePortalServer.isServerRunning() && startBandwidthTracker()
+    }
+
+    @Synchronized
+    private fun startBandwidthTracker(): Boolean {
+        if (trackerStartRequested) return true
+        return try {
+            val intent = Intent(context, BandwidthTrackerService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                ContextCompat.startForegroundService(context, intent)
+            }
+            trackerStartRequested = true
+            true
+        } catch (exception: Exception) {
+            trackerStartRequested = false
+            Log.e("HotspotController", "Could not start bandwidth tracking service", exception)
+            false
+        }
+    }
+
+    @Synchronized
+    private fun stopBandwidthTracker() {
+        try {
+            context.stopService(Intent(context, BandwidthTrackerService::class.java))
+        } finally {
+            trackerStartRequested = false
+        }
     }
 
     /**

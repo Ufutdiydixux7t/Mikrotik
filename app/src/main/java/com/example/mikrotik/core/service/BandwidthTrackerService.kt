@@ -7,21 +7,26 @@ import android.app.Service
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.example.mikrotik.core.hotspot.ClientDiscoveryManager
 import com.example.mikrotik.core.network.IptablesManager
 import com.example.mikrotik.data.db.dao.ActiveSessionDao
 import com.example.mikrotik.data.db.dao.BlockedMacDao
 import com.example.mikrotik.data.db.dao.VoucherDao
-import com.example.mikrotik.data.db.entity.BlockedMacEntity
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class BandwidthTrackerService : Service() {
 
-    @Inject lateinit var clientDiscoveryManager: ClientDiscoveryManager
     @Inject lateinit var activeSessionDao: ActiveSessionDao
     @Inject lateinit var voucherDao: VoucherDao
     @Inject lateinit var blockedMacDao: BlockedMacDao
@@ -29,6 +34,7 @@ class BandwidthTrackerService : Service() {
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var trackingJob: Job? = null
+    private val usagePreferences by lazy { getSharedPreferences("voucher_usage_counters", MODE_PRIVATE) }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -36,6 +42,11 @@ class BandwidthTrackerService : Service() {
         super.onCreate()
         startForegroundServiceNotification()
         startTrackingJob()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (trackingJob?.isActive != true) startTrackingJob()
+        return START_STICKY
     }
 
     private fun startForegroundServiceNotification() {
@@ -46,13 +57,12 @@ class BandwidthTrackerService : Service() {
                 "Mini MikroTik Bandwidth Tracker",
                 NotificationManager.IMPORTANCE_LOW
             )
-            val manager = getSystemService(NotificationManager::class.java)
-            manager?.createNotificationChannel(channel)
+            getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
         }
 
         val notification: Notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle("Mini MikroTik Router Engine")
-            .setContentText("جاري تتبع استهلاك البيانات وتطبيق حظر الكوتا اللحظي...")
+            .setContentText("تتم مراقبة استهلاك البطاقات وفصل الجلسات المنتهية تلقائياً")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
@@ -65,42 +75,77 @@ class BandwidthTrackerService : Service() {
             while (isActive) {
                 try {
                     trackBandwidthAndEnforceQuotas()
-                } catch (e: Exception) {
-                    e.printStackTrace()
+                } catch (exception: Exception) {
+                    Log.e("BandwidthTracker", "Failed to update voucher usage", exception)
                 }
-                delay(5000) // Poll every 5 seconds
+                delay(5_000)
             }
         }
     }
 
     private suspend fun trackBandwidthAndEnforceQuotas() {
-        val devices = clientDiscoveryManager.getConnectedDevices("ap0")
-        for (device in devices) {
-            val mac = device.macAddress
-            
-            // Check if MAC is blocked
+        val sessions = activeSessionDao.getActiveSessionsSnapshot()
+        for (session in sessions) {
+            val mac = session.macAddress
             if (blockedMacDao.isMacBlocked(mac)) {
                 iptablesManager.blockMacAddress(mac)
+                activeSessionDao.deactivateSession(mac)
                 continue
             }
 
-            // Check active session
-            val session = activeSessionDao.getSessionByMac(mac)
-            if (session != null && session.isActive) {
-                val voucher = voucherDao.getVoucherByCode(session.voucherCode)
-                if (voucher != null) {
-                    val firstUse = voucher.firstUsedAt
-                    val isDurationExpired = firstUse != null &&
-                        System.currentTimeMillis() >= firstUse + voucher.durationMinutes * 60_000L
-                    val isQuotaExceeded = voucher.bytesUsedSoFar >= voucher.dataLimitBytes
+            var voucher = voucherDao.getVoucherByCode(session.voucherCode)
+            if (voucher == null || voucher.isBlocked) {
+                iptablesManager.revokeMacAddress(mac)
+                activeSessionDao.deactivateSession(mac)
+                continue
+            }
 
-                    if (isDurationExpired || isQuotaExceeded) {
-                        // Enforce block
-                        iptablesManager.blockMacAddress(mac)
-                        blockedMacDao.blockMac(BlockedMacEntity(macAddress = mac, reason = "تجاوز الكوتا أو مدة البطاقة"))
-                        activeSessionDao.deactivateSession(mac)
-                    }
+            val counterBytes = iptablesManager.getDeviceUsageBytes(mac, session.ipAddress)
+            if (counterBytes != null) {
+                val counterKey = "last_${voucher.code}_${mac.lowercase().replace(':', '_')}"
+                val previousBytes = usagePreferences.getLong(counterKey, -1L)
+                val addedBytes = when {
+                    previousBytes < 0L -> counterBytes
+                    counterBytes >= previousBytes -> counterBytes - previousBytes
+                    else -> counterBytes // iptables counters were reset with the hotspot rules
                 }
+                usagePreferences.edit().putLong(counterKey, counterBytes).apply()
+
+                if (addedBytes > 0L) {
+                    val nextUsage = if (Long.MAX_VALUE - voucher.bytesUsedSoFar < addedBytes) {
+                        Long.MAX_VALUE
+                    } else {
+                        voucher.bytesUsedSoFar + addedBytes
+                    }
+                    val updatedVoucher = voucher.copy(
+                        bytesUsedSoFar = nextUsage
+                    )
+                    voucherDao.updateVoucher(updatedVoucher)
+                    voucher = updatedVoucher
+                }
+            } else {
+                Log.w("BandwidthTracker", "Could not read traffic counters for $mac; quota usage was not changed")
+            }
+
+            val now = System.currentTimeMillis()
+            val firstUse = voucher.firstUsedAt
+            val isDurationExpired = firstUse != null &&
+                now >= firstUse + voucher.durationMinutes * 60_000L
+            val isQuotaExceeded = voucher.bytesUsedSoFar >= voucher.dataLimitBytes
+
+            if (isDurationExpired || isQuotaExceeded) {
+                // Revoke portal bypass so HTTP traffic returns to the login page; don't add a permanent manual block.
+                val revoked = iptablesManager.revokeMacAddress(mac)
+                if (!revoked) {
+                    // Fail closed if the captive-portal allowance cannot be removed.
+                    iptablesManager.blockMacAddress(mac)
+                    Log.e("BandwidthTracker", "Could not revoke portal access for expired voucher on $mac")
+                }
+                activeSessionDao.deactivateSession(mac)
+                Log.i(
+                    "BandwidthTracker",
+                    "Expired voucher disconnected (${if (isQuotaExceeded) "quota" else "duration"}) for $mac"
+                )
             }
         }
     }
