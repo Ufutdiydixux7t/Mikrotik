@@ -27,7 +27,9 @@ object RootModule {
 
     @Provides
     @Singleton
-    fun provideRootDiagnostics(rootShellManager: RootShellManager): RootDiagnostics {
+    fun provideRootDiagnostics(
+        rootShellManager: RootShellManager
+    ): RootDiagnostics {
         return RootDiagnostics(rootShellManager)
     }
 
@@ -49,13 +51,17 @@ object RootModule {
 
     @Provides
     @Singleton
-    fun provideClientDiscoveryManager(rootShellManager: RootShellManager): ClientDiscoveryManager {
+    fun provideClientDiscoveryManager(
+        rootShellManager: RootShellManager
+    ): ClientDiscoveryManager {
         return ClientDiscoveryManager(rootShellManager)
     }
 
     @Provides
     @Singleton
-    fun provideNetworkController(rootShellManager: RootShellManager): NetworkController {
+    fun provideNetworkController(
+        rootShellManager: RootShellManager
+    ): NetworkController {
         return NetworkController(rootShellManager)
     }
 }
