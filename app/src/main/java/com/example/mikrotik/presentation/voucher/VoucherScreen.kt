@@ -10,15 +10,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mikrotik.data.db.entity.VoucherEntity
 import com.example.mikrotik.presentation.ui.theme.AppIcons
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -35,15 +40,15 @@ fun VoucherScreen(
 ) {
     val vouchers by viewModel.vouchers.collectAsState()
     val deleteError by viewModel.deleteError.collectAsState()
+    val creationError by viewModel.creationError.collectAsState()
 
-    var selectedDurationIndex by remember { mutableStateOf(0) }
-    var selectedDataIndex by remember { mutableStateOf(1) }
+    var selectedDurationIndex by rememberSaveable { mutableIntStateOf(0) }
+    var dataAmount by rememberSaveable { mutableStateOf("500") }
+    var selectedDataUnit by rememberSaveable { mutableStateOf(VoucherDataUnit.MB) }
 
-    val durationOptions = listOf("1 يوم", "7 أيام", "30 يوم")
-    val dataOptions = listOf("500 MB", "1 GB", "5 GB", "10 GB")
+    val durationOptions = listOf("يوم واحد", "7 أيام", "30 يوماً")
 
     var durationExpanded by remember { mutableStateOf(false) }
-    var dataExpanded by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -110,7 +115,7 @@ fun VoucherScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "مدة البيانات",
+                                text = "مدة صلاحية البطاقة",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = DeepGreenHeader
@@ -165,7 +170,7 @@ fun VoucherScreen(
                         }
                     }
 
-                    // Data Volume Dropdown
+                    // Custom data limit with an explicit unit.
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -173,7 +178,7 @@ fun VoucherScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "حجم المدة",
+                                text = "حد استهلاك البطاقة",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = DeepGreenHeader
@@ -190,41 +195,60 @@ fun VoucherScreen(
                             }
                         }
 
-                        ExposedDropdownMenuBox(
-                            expanded = dataExpanded,
-                            onExpandedChange = { dataExpanded = !dataExpanded }
+                        OutlinedTextField(
+                            value = dataAmount,
+                            onValueChange = { value ->
+                                if (value.length <= 20) dataAmount = value
+                                viewModel.clearCreationError()
+                            },
+                            label = { Text("أدخل الحجم") },
+                            placeholder = { Text("مثال: 500 أو 1.5") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            trailingIcon = {
+                                Text(
+                                    text = selectedDataUnit.label,
+                                    modifier = Modifier.padding(end = 8.dp),
+                                    color = RichGreenButton,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = RichGreenButton,
+                                unfocusedBorderColor = WatermarkLineColor,
+                                focusedContainerColor = Color(0xFFFAFCFB),
+                                unfocusedContainerColor = Color(0xFFFAFCFB)
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            OutlinedTextField(
-                                value = dataOptions[selectedDataIndex],
-                                onValueChange = {},
-                                readOnly = true,
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dataExpanded) },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = RichGreenButton,
-                                    unfocusedBorderColor = WatermarkLineColor,
-                                    focusedContainerColor = Color(0xFFFAFCFB),
-                                    unfocusedContainerColor = Color(0xFFFAFCFB)
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .menuAnchor()
-                            )
-                            ExposedDropdownMenu(
-                                expanded = dataExpanded,
-                                onDismissRequest = { dataExpanded = false }
-                            ) {
-                                dataOptions.forEachIndexed { index, option ->
-                                    DropdownMenuItem(
-                                        text = { Text(option) },
-                                        onClick = {
-                                            selectedDataIndex = index
-                                            dataExpanded = false
-                                        }
+                            VoucherDataUnit.entries.forEach { unit ->
+                                FilterChip(
+                                    selected = selectedDataUnit == unit,
+                                    onClick = {
+                                        selectedDataUnit = unit
+                                        viewModel.clearCreationError()
+                                    },
+                                    label = { Text(if (unit == VoucherDataUnit.MB) "ميغابايت (MB)" else "غيغابايت (GB)") },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Color(0xFFD5ECE9),
+                                        selectedLabelColor = DeepGreenHeader
                                     )
-                                }
+                                )
                             }
                         }
+                        Text(
+                            text = "يمكن إدخال كسور مثل 1.5، ويُحسب 1 GB = 1024 MB.",
+                            fontSize = 12.sp,
+                            color = Color.Gray
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(4.dp))
@@ -237,13 +261,7 @@ fun VoucherScreen(
                                 1 -> 7
                                 else -> 30
                             }
-                            val gb = when (selectedDataIndex) {
-                                0 -> 0
-                                1 -> 1
-                                2 -> 5
-                                else -> 10
-                            }
-                            viewModel.createVoucher(days, gb)
+                            viewModel.createVoucher(days, dataAmount, selectedDataUnit)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -269,6 +287,15 @@ fun VoucherScreen(
                                 color = Color.White
                             )
                         }
+                    }
+                    creationError?.let { error ->
+                        Text(
+                            text = error,
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Color(0xFFC62828),
+                            fontSize = 13.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
                     }
                 }
             }
@@ -333,8 +360,7 @@ fun VoucherItemCard(
     onDelete: (VoucherEntity, (Boolean) -> Unit) -> Unit
 ) {
     var showDeleteConfirmation by remember(voucher.code) { mutableStateOf(false) }
-    val dataGb = voucher.dataLimitBytes / (1024 * 1024 * 1024)
-    val dataText = if (dataGb > 0) "$dataGb GB" else "${voucher.dataLimitBytes / (1024 * 1024)} MB"
+    val dataText = formatVoucherDataLimit(voucher.dataLimitBytes)
     val daysText = "${voucher.durationMinutes / (24 * 60)} يوم"
 
     val expiryTime = voucher.firstUsedAt?.let { it + voucher.durationMinutes * 60 * 1000 }
@@ -449,4 +475,15 @@ fun VoucherItemCard(
             }
         )
     }
+}
+
+private fun formatVoucherDataLimit(bytes: Long): String {
+    val gigabyte = 1024L * 1024L * 1024L
+    val megabyte = 1024L * 1024L
+    val (divisor, unit) = if (bytes >= gigabyte) gigabyte to "GB" else megabyte to "MB"
+    val amount = BigDecimal.valueOf(bytes)
+        .divide(BigDecimal.valueOf(divisor), 2, RoundingMode.HALF_UP)
+        .stripTrailingZeros()
+        .toPlainString()
+    return "$amount $unit"
 }

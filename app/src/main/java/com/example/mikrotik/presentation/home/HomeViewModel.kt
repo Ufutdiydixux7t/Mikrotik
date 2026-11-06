@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mikrotik.core.hotspot.ClientDiscoveryManager
 import com.example.mikrotik.core.hotspot.HotspotController
+import com.example.mikrotik.core.network.DeviceNetworkUsageReader
 import com.example.mikrotik.core.network.NetworkController
 import com.example.mikrotik.domain.model.ConnectedDevice
 import com.example.mikrotik.domain.model.HotspotState
@@ -13,6 +14,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.math.BigDecimal
+import java.math.RoundingMode
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
+import java.util.Locale
 import javax.inject.Inject
 
 @HiltViewModel
@@ -34,7 +40,7 @@ class HomeViewModel @Inject constructor(
     private val _isDataActive = MutableStateFlow(false)
     val isDataActive: StateFlow<Boolean> = _isDataActive.asStateFlow()
 
-    private val _totalUsageFormatted = MutableStateFlow("5.2 GB")
+    private val _totalUsageFormatted = MutableStateFlow("جارٍ القياس")
     val totalUsageFormatted: StateFlow<String> = _totalUsageFormatted.asStateFlow()
 
     private val _isRefreshing = MutableStateFlow(false)
@@ -67,6 +73,7 @@ class HomeViewModel @Inject constructor(
             // 3. WiFi & Mobile Data status via Root
             _isWifiActive.value = networkController.isWifiEnabled()
             _isDataActive.value = networkController.isMobileDataEnabled()
+            refreshTotalUsage()
 
             _isRefreshing.value = false
         }
@@ -138,7 +145,27 @@ class HomeViewModel @Inject constructor(
                 _connectedDevices.value = clientDiscoveryManager.getConnectedDevices(iface)
                 _isWifiActive.value = networkController.isWifiEnabled()
                 _isDataActive.value = networkController.isMobileDataEnabled()
+                refreshTotalUsage()
             }
         }
+    }
+
+    private fun refreshTotalUsage() {
+        val totalBytes = DeviceNetworkUsageReader.totalBytesSinceBoot()
+        _totalUsageFormatted.value = totalBytes?.let(::formatNetworkUsage) ?: "غير متاح"
+    }
+
+    private fun formatNetworkUsage(bytes: Long): String {
+        val (divisor, unit) = when {
+            bytes >= 1024L * 1024L * 1024L -> 1024L * 1024L * 1024L to "GB"
+            bytes >= 1024L * 1024L -> 1024L * 1024L to "MB"
+            bytes >= 1024L -> 1024L to "KB"
+            else -> 1L to "B"
+        }
+        val value = BigDecimal.valueOf(bytes)
+            .divide(BigDecimal.valueOf(divisor), 2, RoundingMode.HALF_UP)
+        val formatted = DecimalFormat("0.##", DecimalFormatSymbols.getInstance(Locale.getDefault()))
+            .format(value)
+        return "$formatted $unit"
     }
 }

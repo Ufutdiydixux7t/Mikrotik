@@ -197,7 +197,7 @@ fun TotalUsageCard(totalUsage: String) {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "استهلاك الإنترنت الكلي",
+                    text = "استهلاك الإنترنت على الجهاز",
                     color = DeepGreenHeader,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
@@ -208,6 +208,13 @@ fun TotalUsageCard(totalUsage: String) {
                     color = DeepGreenHeader,
                     fontSize = 34.sp,
                     fontWeight = FontWeight.ExtraBold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Wi-Fi + بيانات الهاتف • منذ آخر إعادة تشغيل",
+                    color = DeepGreenHeader.copy(alpha = 0.72f),
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center
                 )
             }
         }

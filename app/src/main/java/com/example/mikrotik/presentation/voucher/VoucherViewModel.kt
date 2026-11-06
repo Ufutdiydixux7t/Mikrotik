@@ -10,6 +10,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -27,11 +28,24 @@ class VoucherViewModel @Inject constructor(
     val vouchers: StateFlow<List<VoucherEntity>> = voucherDao.getAllVouchersFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun createVoucher(durationDays: Int, dataGigabytes: Int) {
+    private val _creationError = MutableStateFlow<String?>(null)
+    val creationError: StateFlow<String?> = _creationError.asStateFlow()
+
+    fun clearCreationError() {
+        _creationError.value = null
+    }
+
+    fun createVoucher(durationDays: Int, dataAmount: String, dataUnit: VoucherDataUnit) {
+        val dataBytes = VoucherSizeParser.toBytes(dataAmount, dataUnit)
+        if (durationDays <= 0 || dataBytes == null) {
+            _creationError.value = "أدخل حجماً صحيحاً أكبر من صفر واختر MB أو GB."
+            return
+        }
+
+        _creationError.value = null
         viewModelScope.launch {
             val code = "MDI-" + (1000..9999).random()
             val durationMinutes = durationDays * 24 * 60L
-            val dataBytes = dataGigabytes * 1024L * 1024L * 1024L
 
             val voucher = VoucherEntity(
                 code = code,
