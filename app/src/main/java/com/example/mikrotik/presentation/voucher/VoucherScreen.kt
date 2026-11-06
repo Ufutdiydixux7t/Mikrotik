@@ -327,13 +327,14 @@ fun VoucherItemCard(voucher: VoucherEntity) {
     val dataText = if (dataGb > 0) "$dataGb GB" else "${voucher.dataLimitBytes / (1024 * 1024)} MB"
     val daysText = "${voucher.durationMinutes / (24 * 60)} يوم"
 
-    val isExpired = System.currentTimeMillis() > (voucher.createdAt + voucher.durationMinutes * 60 * 1000)
+    val expiryTime = voucher.firstUsedAt?.let { it + voucher.durationMinutes * 60 * 1000 }
+    val isExpired = expiryTime != null && System.currentTimeMillis() >= expiryTime
     val statusText = if (isExpired) "منتهية" else if (voucher.isUsed) "نشطة" else "غير مستخدمة"
     val statusBg = if (isExpired) Color(0xFFFFEBEE) else if (voucher.isUsed) Color(0xFFE8F5E9) else Color(0xFFF5F5F5)
     val statusColor = if (isExpired) Color(0xFFC62828) else if (voucher.isUsed) Color(0xFF2E7D32) else Color(0xFF757575)
 
     val dateFormat = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
-    val expiryDateStr = dateFormat.format(Date(voucher.createdAt + voucher.durationMinutes * 60 * 1000))
+    val expiryDateStr = expiryTime?.let { dateFormat.format(Date(it)) }
 
     Card(
         modifier = Modifier
@@ -381,7 +382,11 @@ fun VoucherItemCard(voucher: VoucherEntity) {
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = if (isExpired) "انتهت في: $expiryDateStr" else "تنتهي في: $expiryDateStr",
+                        text = when {
+                            expiryDateStr == null -> "تبدأ الصلاحية عند أول استخدام"
+                            isExpired -> "انتهت في: $expiryDateStr"
+                            else -> "تنتهي في: $expiryDateStr"
+                        },
                         fontSize = 12.sp,
                         color = Color.Gray
                     )

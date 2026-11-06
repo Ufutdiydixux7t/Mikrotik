@@ -8,12 +8,16 @@ import io.ktor.server.cio.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import com.example.mikrotik.data.db.dao.VoucherDao
 import java.net.NetworkInterface
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class CaptivePortalServer @Inject constructor() {
+class CaptivePortalServer @Inject constructor(
+    private val voucherDao: VoucherDao
+) {
 
     private var server: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
     private var isRunning = false
@@ -72,15 +76,42 @@ class CaptivePortalServer @Inject constructor() {
                     // Login submission
                     post("/login") {
                         val params = call.receiveParameters()
-                        val code = params["code"] ?: ""
-                        Log.d("CaptivePortalServer", "Login attempt with code: $code")
+                        val code = params["code"].orEmpty().trim().uppercase(Locale.ROOT)
+                        Log.d("CaptivePortalServer", "Voucher login attempt submitted")
                         
                         if (code.isBlank()) {
                             call.respondText(getHtmlResultPage("خطأ", "يرجى إدخال كود الكرت بشكل صحيح.", false), contentType = ContentType.Text.Html)
-                        } else if (code == "12345" || code.startsWith("MDI")) {
-                            call.respondText(getHtmlResultPage("تم الاتصال بنجاح", "البيانات المتبقية: 4.8 GB | المدة المتبقية: 29 يوم", true), contentType = ContentType.Text.Html)
                         } else {
-                            call.respondText(getHtmlResultPage("كود غير صحيح", "عذراً، كود البطاقة غير صالح أو منتهي الصلاحية.", false), contentType = ContentType.Text.Html)
+                            val now = System.currentTimeMillis()
+                            val activated = voucherDao.activateVoucherIfValid(code, now)
+                            val voucher = voucherDao.getVoucherByCode(code)
+
+                            if (activated > 0 && voucher != null) {
+                                val remainingBytes = (voucher.dataLimitBytes - voucher.bytesUsedSoFar).coerceAtLeast(0L)
+                                val remainingMb = remainingBytes / (1024L * 1024L)
+                                val firstUse = voucher.firstUsedAt ?: now
+                                val remainingMinutes = ((firstUse + voucher.durationMinutes * 60_000L - now) / 60_000L)
+                                    .coerceAtLeast(0L)
+                                val message = "البطاقة صحيحة. المتبقي: $remainingMb MB و$remainingMinutes دقيقة. " +
+                                    "تم التحقق من البطاقة فقط؛ تمرير الإنترنت الفعلي سيُفعّل في المرحلة التالية."
+                                call.respondText(
+                                    getHtmlResultPage("تم التحقق من البطاقة", message, true),
+                                    contentType = ContentType.Text.Html
+                                )
+                            } else {
+                                val reason = when {
+                                    voucher == null -> "رمز البطاقة غير موجود."
+                                    voucher.isBlocked -> "هذه البطاقة محظورة."
+                                    voucher.bytesUsedSoFar >= voucher.dataLimitBytes -> "انتهى حجم البيانات المسموح لهذه البطاقة."
+                                    voucher.firstUsedAt != null && now >= voucher.firstUsedAt + voucher.durationMinutes * 60_000L ->
+                                        "انتهت مدة صلاحية البطاقة."
+                                    else -> "تعذر قبول البطاقة؛ تحقق من حالتها وحاول مجدداً."
+                                }
+                                call.respondText(
+                                    getHtmlResultPage("تعذر تسجيل الدخول", reason, false),
+                                    contentType = ContentType.Text.Html
+                                )
+                            }
                         }
                     }
                 }

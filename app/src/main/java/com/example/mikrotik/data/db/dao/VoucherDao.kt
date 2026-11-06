@@ -17,6 +17,16 @@ interface VoucherDao {
     @Query("SELECT * FROM vouchers WHERE code = :code LIMIT 1")
     suspend fun getVoucherByCode(code: String): VoucherEntity?
 
+    @Query(
+        """UPDATE vouchers
+           SET isUsed = 1, firstUsedAt = COALESCE(firstUsedAt, :now)
+           WHERE code = :code
+             AND isBlocked = 0
+             AND bytesUsedSoFar < dataLimitBytes
+             AND (firstUsedAt IS NULL OR :now < firstUsedAt + durationMinutes * 60000)"""
+    )
+    suspend fun activateVoucherIfValid(code: String, now: Long): Int
+
     @Query("SELECT * FROM vouchers WHERE boundMacAddress = :macAddress LIMIT 1")
     suspend fun getVoucherByMac(macAddress: String): VoucherEntity?
 

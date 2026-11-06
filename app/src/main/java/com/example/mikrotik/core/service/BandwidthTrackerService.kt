@@ -89,7 +89,9 @@ class BandwidthTrackerService : Service() {
             if (session != null && session.isActive) {
                 val voucher = voucherDao.getVoucherByCode(session.voucherCode)
                 if (voucher != null) {
-                    val isDurationExpired = System.currentTimeMillis() > (voucher.createdAt + voucher.durationMinutes * 60 * 1000)
+                    val firstUse = voucher.firstUsedAt
+                    val isDurationExpired = firstUse != null &&
+                        System.currentTimeMillis() >= firstUse + voucher.durationMinutes * 60_000L
                     val isQuotaExceeded = voucher.bytesUsedSoFar >= voucher.dataLimitBytes
 
                     if (isDurationExpired || isQuotaExceeded) {
