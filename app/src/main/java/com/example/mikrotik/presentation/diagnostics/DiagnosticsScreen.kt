@@ -26,11 +26,11 @@ import com.example.mikrotik.presentation.ui.components.AppTopBar
 import com.example.mikrotik.presentation.ui.theme.AppIcons
 import com.example.mikrotik.ui.theme.AppPalette
 
-private val DeepGreenHeader = AppPalette.TextNavy
-private val RichGreenButton = AppPalette.Teal
-private val PageBackground = AppPalette.Background
-private val SeamlessCardBg = AppPalette.Card
-private val WatermarkLineColor = AppPalette.Border
+private val DeepGreenHeader get() = AppPalette.TextNavy
+private val RichGreenButton get() = AppPalette.Teal
+private val PageBackground get() = AppPalette.Background
+private val SeamlessCardBg get() = AppPalette.Card
+private val WatermarkLineColor get() = AppPalette.Border
 
 sealed class SettingsDestination {
     object MainSettings : SettingsDestination()
@@ -43,11 +43,12 @@ sealed class SettingsDestination {
 
 @Composable
 fun DiagnosticsScreen(
-    viewModel: DiagnosticsViewModel
+    viewModel: DiagnosticsViewModel,
+    isDarkModeEnabled: Boolean,
+    onDarkModeToggle: (Boolean) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var currentDestination by remember { mutableStateOf<SettingsDestination>(SettingsDestination.MainSettings) }
-    var isDarkModeEnabled by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -76,7 +77,7 @@ fun DiagnosticsScreen(
                 SettingsDestination.MainSettings -> {
                     MainSettingsList(
                         isDarkModeEnabled = isDarkModeEnabled,
-                        onDarkModeToggle = { isDarkModeEnabled = it },
+                        onDarkModeToggle = onDarkModeToggle,
                         onNavigate = { currentDestination = it }
                     )
                 }
@@ -160,7 +161,7 @@ private fun PortalAppearanceSettingsScreen(
                 Text(
                     text = "غيّر الاسم واللون اللذين يراهما المتصلون عند فتح بوابة تسجيل الدخول.",
                     fontSize = 13.sp,
-                    color = Color.DarkGray,
+                    color = AppPalette.Muted,
                     lineHeight = 20.sp
                 )
                 OutlinedTextField(
@@ -363,7 +364,7 @@ fun SettingsItemRow(
                     Text(
                         text = subtitle,
                         fontSize = 12.sp,
-                        color = Color.Gray
+                        color = AppPalette.Muted
                     )
                 }
             }
@@ -372,7 +373,7 @@ fun SettingsItemRow(
         Icon(
             imageVector = AppIcons.ChevronLeft,
             contentDescription = null,
-            tint = Color.Gray,
+            tint = AppPalette.Muted,
             modifier = Modifier.size(20.dp)
         )
     }
@@ -461,7 +462,7 @@ fun AboutUsDetailScreen(
                 Text(
                     text = "نظام إدارة الشبكات والروتر المصغر",
                     fontSize = 13.sp,
-                    color = Color.Gray
+                    color = AppPalette.Muted
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -484,7 +485,7 @@ fun AboutUsDetailScreen(
                 Text(
                     text = "نظام متكامل لإدارة شبكات الهوتسبوت (Hotspot) وتوليد وإنشاء كروت وبطاقات الإنترنت، وتتبع الجلسات النشطة واستهلاك البيانات للمشتركين، بالإضافة إلى التحكم بإعدادات التوجيه والجدار الناري عبر صلاحيات الـ Root.",
                     fontSize = 14.sp,
-                    color = Color.DarkGray,
+                    color = AppPalette.Muted,
                     lineHeight = 22.sp,
                     textAlign = TextAlign.Start
                 )
@@ -554,7 +555,7 @@ fun BlankDetailScreen(
                 Text(
                     text = message,
                     fontSize = 14.sp,
-                    color = Color.DarkGray,
+                    color = AppPalette.Muted,
                     textAlign = TextAlign.Center
                 )
             }
@@ -616,7 +617,7 @@ fun DiagnosticsReportContent(
                     text = statusSubtitle,
                     fontSize = 13.sp,
                     fontFamily = FontFamily.Monospace,
-                    color = Color.DarkGray
+                    color = AppPalette.Muted
                 )
             }
         }
@@ -719,7 +720,7 @@ fun InfoItem(title: String, value: String) {
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text(text = title, fontSize = 13.sp, color = Color.Gray)
+            Text(text = title, fontSize = 13.sp, color = AppPalette.Muted)
             Spacer(modifier = Modifier.height(2.dp))
             Text(text = value, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = DeepGreenHeader)
         }

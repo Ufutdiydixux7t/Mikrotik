@@ -7,6 +7,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.core.view.WindowCompat
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import com.example.mikrotik.presentation.dashboard.DashboardViewModel
@@ -33,13 +36,30 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightNavigationBars = true
         }
         setContent {
+            val preferences = remember {
+                getSharedPreferences("mikrotik_ui_preferences", android.content.Context.MODE_PRIVATE)
+            }
+            val darkMode = remember {
+                mutableStateOf(preferences.getBoolean("dark_mode_enabled", false))
+            }
+            SideEffect {
+                WindowCompat.getInsetsController(window, window.decorView).apply {
+                    isAppearanceLightStatusBars = false
+                    isAppearanceLightNavigationBars = !darkMode.value
+                }
+            }
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                MikrotikTheme {
+                MikrotikTheme(darkTheme = darkMode.value) {
                     MainScreen(
                         homeViewModel = homeViewModel,
                         diagnosticsViewModel = diagnosticsViewModel,
                         voucherViewModel = voucherViewModel,
-                        dashboardViewModel = dashboardViewModel
+                        dashboardViewModel = dashboardViewModel,
+                        isDarkModeEnabled = darkMode.value,
+                        onDarkModeToggle = { enabled ->
+                            darkMode.value = enabled
+                            preferences.edit().putBoolean("dark_mode_enabled", enabled).apply()
+                        }
                     )
                 }
             }

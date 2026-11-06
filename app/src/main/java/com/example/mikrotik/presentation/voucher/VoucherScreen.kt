@@ -39,10 +39,10 @@ import java.math.RoundingMode
 import java.text.SimpleDateFormat
 import java.util.*
 
-private val DeepGreenHeader = AppPalette.TextNavy
-private val RichGreenButton = AppPalette.Teal
-private val SeamlessCardBg = AppPalette.Card
-private val WatermarkLineColor = AppPalette.Border
+private val DeepGreenHeader get() = AppPalette.TextNavy
+private val RichGreenButton get() = AppPalette.Teal
+private val SeamlessCardBg get() = AppPalette.Card
+private val WatermarkLineColor get() = AppPalette.Border
 
 enum class VoucherFilterTab(val title: String) {
     UNUSED("غير مستخدمة"),
@@ -167,8 +167,8 @@ fun VoucherScreen(
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = RichGreenButton,
                                     unfocusedBorderColor = WatermarkLineColor,
-                                    focusedContainerColor = Color(0xFFFAFCFB),
-                                    unfocusedContainerColor = Color(0xFFFAFCFB)
+                                    focusedContainerColor = AppPalette.Card,
+                                    unfocusedContainerColor = AppPalette.Card
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -244,8 +244,8 @@ fun VoucherScreen(
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = RichGreenButton,
                                 unfocusedBorderColor = WatermarkLineColor,
-                                focusedContainerColor = Color(0xFFFAFCFB),
-                                unfocusedContainerColor = Color(0xFFFAFCFB)
+                                focusedContainerColor = AppPalette.Card,
+                                unfocusedContainerColor = AppPalette.Card
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -265,7 +265,7 @@ fun VoucherScreen(
                                     modifier = Modifier.weight(1f),
                                     shape = RoundedCornerShape(12.dp),
                                     colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = Color(0xFFD5ECE9),
+                                        selectedContainerColor = AppPalette.MintStrong,
                                         selectedLabelColor = DeepGreenHeader
                                     )
                                 )
@@ -274,7 +274,7 @@ fun VoucherScreen(
                         Text(
                             text = "يمكن إدخال كسور مثل 1.5، ويُحسب 1 GB = 1024 MB.",
                             fontSize = 12.sp,
-                            color = Color.Gray
+                            color = AppPalette.Muted
                         )
                     }
 
@@ -374,8 +374,8 @@ fun VoucherScreen(
                     title = "بطاقات غير مستخدمة",
                     vouchers = unusedVouchers,
                     emptyMessage = "لا توجد بطاقات غير مستخدمة حالياً.",
-                    statusTint = Color(0xFF757575),
-                    statusBackground = Color(0xFFF1F3F4),
+                    statusTint = if (AppPalette.isDarkMode) Color(0xFFC2CDD2) else Color(0xFF757575),
+                    statusBackground = if (AppPalette.isDarkMode) Color(0xFF303E44) else Color(0xFFF1F3F4),
                     deleteError = deleteError,
                     onCopy = copyVoucherCode,
                     onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
@@ -384,8 +384,8 @@ fun VoucherScreen(
                     title = "بطاقات نشطة",
                     vouchers = activeVouchers,
                     emptyMessage = "لا توجد بطاقات نشطة حالياً.",
-                    statusTint = Color(0xFF2E7D32),
-                    statusBackground = Color(0xFFE8F5E9),
+                    statusTint = if (AppPalette.isDarkMode) Color(0xFF83D8A0) else Color(0xFF2E7D32),
+                    statusBackground = if (AppPalette.isDarkMode) Color(0xFF203D2B) else Color(0xFFE8F5E9),
                     deleteError = deleteError,
                     onCopy = copyVoucherCode,
                     onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
@@ -394,8 +394,8 @@ fun VoucherScreen(
                     title = "بطاقات منتهية",
                     vouchers = expiredVouchers,
                     emptyMessage = "لا توجد بطاقات منتهية حالياً.",
-                    statusTint = Color(0xFFC62828),
-                    statusBackground = Color(0xFFFFEBEE),
+                    statusTint = if (AppPalette.isDarkMode) Color(0xFFFF8A80) else Color(0xFFC62828),
+                    statusBackground = if (AppPalette.isDarkMode) Color(0xFF492727) else Color(0xFFFFEBEE),
                     deleteError = deleteError,
                     onCopy = copyVoucherCode,
                     onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
@@ -494,7 +494,7 @@ private fun VoucherStatusSection(
                 Text(
                     text = emptyMessage,
                     modifier = Modifier.fillMaxWidth().padding(18.dp),
-                    color = Color.Gray,
+                    color = AppPalette.Muted,
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center
                 )
@@ -604,7 +604,7 @@ private fun VoucherItemCard(
                 },
                 modifier = Modifier.fillMaxWidth(),
                 fontSize = 12.sp,
-                color = Color.Gray,
+                color = AppPalette.Muted,
                 textAlign = TextAlign.Start
             )
         }

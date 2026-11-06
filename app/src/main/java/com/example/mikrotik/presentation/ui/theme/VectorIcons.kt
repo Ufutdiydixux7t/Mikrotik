@@ -174,6 +174,32 @@ object AppIcons {
             }
         }.build()
 
+    val HomeFilled: ImageVector
+        get() = ImageVector.Builder(
+            name = "HomeFilled",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(12f, 2.5f)
+                lineTo(1.5f, 11f)
+                lineTo(3.2f, 13f)
+                lineTo(4f, 12.3f)
+                lineTo(4f, 21f)
+                lineTo(10f, 21f)
+                lineTo(10f, 14f)
+                lineTo(14f, 14f)
+                lineTo(14f, 21f)
+                lineTo(20f, 21f)
+                lineTo(20f, 12.3f)
+                lineTo(20.8f, 13f)
+                lineTo(22.5f, 11f)
+                close()
+            }
+        }.build()
+
     val CreditCard: ImageVector
         get() = ImageVector.Builder(
             name = "CreditCard",
@@ -213,13 +239,17 @@ object AppIcons {
                 strokeLineJoin = StrokeJoin.Round
             ) {
                 moveTo(6f, 20f)
-                lineTo(6f, 12f)
-                moveTo(12f, 20f)
-                lineTo(12f, 6f)
+                lineTo(6f, 15f)
+                moveTo(10f, 20f)
+                lineTo(10f, 10f)
+                moveTo(14f, 20f)
+                lineTo(14f, 5f)
                 moveTo(18f, 20f)
-                lineTo(18f, 14f)
+                lineTo(18f, 13f)
+                moveTo(22f, 20f)
+                lineTo(22f, 17f)
                 moveTo(3f, 20f)
-                lineTo(21f, 20f)
+                lineTo(23f, 20f)
             }
         }.build()
 
@@ -237,16 +267,46 @@ object AppIcons {
                 strokeLineCap = StrokeCap.Round,
                 strokeLineJoin = StrokeJoin.Round
             ) {
-                moveTo(12f, 15f)
-                arcTo(3f, 3f, 0f, true, true, 12.01f, 15f)
-                moveTo(19.4f, 15f)
-                lineTo(20.8f, 13.6f)
-                lineTo(18.8f, 10.2f)
-                lineTo(16.9f, 10.9f)
-                lineTo(15f, 9f)
-                lineTo(15.7f, 7.1f)
-                lineTo(12.3f, 5.1f)
-                lineTo(11f, 6.8f)
+                moveTo(12f, 2.5f)
+                lineTo(14f, 2.8f)
+                lineTo(14.6f, 5f)
+                lineTo(16.2f, 5.7f)
+                lineTo(18.4f, 4.6f)
+                lineTo(19.8f, 6.1f)
+                lineTo(18.7f, 8.2f)
+                lineTo(19.4f, 9.8f)
+                lineTo(21.6f, 10.4f)
+                lineTo(21.6f, 13.6f)
+                lineTo(19.4f, 14.2f)
+                lineTo(18.7f, 15.8f)
+                lineTo(19.8f, 17.9f)
+                lineTo(18.4f, 19.4f)
+                lineTo(16.2f, 18.3f)
+                lineTo(14.6f, 19f)
+                lineTo(14f, 21.2f)
+                lineTo(10f, 21.2f)
+                lineTo(9.4f, 19f)
+                lineTo(7.8f, 18.3f)
+                lineTo(5.6f, 19.4f)
+                lineTo(4.2f, 17.9f)
+                lineTo(5.3f, 15.8f)
+                lineTo(4.6f, 14.2f)
+                lineTo(2.4f, 13.6f)
+                lineTo(2.4f, 10.4f)
+                lineTo(4.6f, 9.8f)
+                lineTo(5.3f, 8.2f)
+                lineTo(4.2f, 6.1f)
+                lineTo(5.6f, 4.6f)
+                lineTo(7.8f, 5.7f)
+                lineTo(9.4f, 5f)
+                lineTo(10f, 2.8f)
+                close()
+                moveTo(15f, 12f)
+                curveTo(15f, 13.7f, 13.7f, 15f, 12f, 15f)
+                curveTo(10.3f, 15f, 9f, 13.7f, 9f, 12f)
+                curveTo(9f, 10.3f, 10.3f, 9f, 12f, 9f)
+                curveTo(13.7f, 9f, 15f, 10.3f, 15f, 12f)
+                close()
             }
         }.build()
 

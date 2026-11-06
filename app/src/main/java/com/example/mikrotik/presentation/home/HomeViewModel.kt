@@ -68,7 +68,11 @@ class HomeViewModel @Inject constructor(
 
             // 2. Connected Devices
             val iface = if (state is HotspotState.Enabled) state.interfaceName else null
-            _connectedDevices.value = clientDiscoveryManager.getConnectedDevices(iface)
+            _connectedDevices.value = if (iface == null) {
+                emptyList()
+            } else {
+                clientDiscoveryManager.getConnectedDevices(iface)
+            }
 
             // 3. WiFi & Mobile Data status via Root
             _isWifiActive.value = networkController.isWifiEnabled()
@@ -142,7 +146,11 @@ class HomeViewModel @Inject constructor(
                 val state = hotspotController.getHotspotStatus()
                 _hotspotState.value = state
                 val iface = if (state is HotspotState.Enabled) state.interfaceName else null
-                _connectedDevices.value = clientDiscoveryManager.getConnectedDevices(iface)
+                _connectedDevices.value = if (iface == null) {
+                    emptyList()
+                } else {
+                    clientDiscoveryManager.getConnectedDevices(iface)
+                }
                 _isWifiActive.value = networkController.isWifiEnabled()
                 _isDataActive.value = networkController.isMobileDataEnabled()
                 refreshTotalUsage()

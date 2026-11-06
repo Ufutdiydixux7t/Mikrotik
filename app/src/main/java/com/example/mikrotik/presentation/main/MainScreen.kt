@@ -2,6 +2,7 @@ package com.example.mikrotik.presentation.main
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -27,12 +28,12 @@ import com.example.mikrotik.presentation.voucher.VoucherScreen
 import com.example.mikrotik.presentation.voucher.VoucherViewModel
 import com.example.mikrotik.ui.theme.AppPalette
 
-private val DeepGreenHeader = AppPalette.TextNavy
-private val RichGreenButton = AppPalette.Teal
-private val SeamlessCardBg = AppPalette.Card
-private val WatermarkLineColor = AppPalette.Border
-private val InactiveColor = AppPalette.Muted
-private val BottomBarBg = AppPalette.Card
+private val DeepGreenHeader get() = AppPalette.TextNavy
+private val RichGreenButton get() = AppPalette.Teal
+private val SeamlessCardBg get() = AppPalette.Card
+private val WatermarkLineColor get() = AppPalette.Border
+private val InactiveColor get() = AppPalette.TextNavy
+private val BottomBarBg get() = AppPalette.Card
 
 enum class BottomTab(val title: String, val icon: ImageVector) {
     HOME("الرئيسية", AppIcons.Home),
@@ -46,7 +47,9 @@ fun MainScreen(
     homeViewModel: HomeViewModel,
     diagnosticsViewModel: DiagnosticsViewModel,
     voucherViewModel: VoucherViewModel,
-    dashboardViewModel: DashboardViewModel
+    dashboardViewModel: DashboardViewModel,
+    isDarkModeEnabled: Boolean,
+    onDarkModeToggle: (Boolean) -> Unit
 ) {
     var currentTab by remember { mutableStateOf(BottomTab.HOME) }
 
@@ -59,19 +62,17 @@ fun MainScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shadowElevation = 8.dp,
-                        shape = RoundedCornerShape(32.dp),
+                        shape = RoundedCornerShape(36.dp),
                         color = BottomBarBg
                     ) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
+                            modifier = Modifier.fillMaxWidth().height(72.dp),
                             horizontalArrangement = Arrangement.SpaceAround,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -82,32 +83,40 @@ fun MainScreen(
                                 Column(
                                     modifier = Modifier
                                         .weight(1f)
-                                        .padding(vertical = 4.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
+                                        .fillMaxHeight()
+                                        .clickable { currentTab = tab }
+                                        .padding(horizontal = 2.dp, vertical = 5.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
                                 ) {
-                                    IconButton(onClick = { currentTab = tab }) {
-                                        Icon(
-                                            imageVector = tab.icon,
-                                            contentDescription = tab.title,
-                                            tint = contentColor,
-                                            modifier = Modifier.size(27.dp)
-                                        )
-                                    }
+                                    Icon(
+                                        imageVector = if (tab == BottomTab.HOME && isSelected) {
+                                            AppIcons.HomeFilled
+                                        } else {
+                                            tab.icon
+                                        },
+                                        contentDescription = tab.title,
+                                        tint = contentColor,
+                                        modifier = Modifier.size(30.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = tab.title,
-                                        fontSize = 13.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = contentColor
+                                        fontSize = 14.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = contentColor,
+                                        maxLines = 1
                                     )
-                                    if (isSelected) {
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .width(20.dp)
-                                                .height(3.dp)
-                                                .background(RichGreenButton, shape = RoundedCornerShape(2.dp))
-                                        )
-                                    }
+                                    Spacer(modifier = Modifier.height(3.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .width(30.dp)
+                                            .height(4.dp)
+                                            .background(
+                                                if (isSelected) RichGreenButton else Color.Transparent,
+                                                shape = RoundedCornerShape(3.dp)
+                                            )
+                                    )
                                 }
                             }
                         }
@@ -134,7 +143,11 @@ fun MainScreen(
                         DashboardScreen(viewModel = dashboardViewModel)
                     }
                     BottomTab.SETTINGS -> {
-                        DiagnosticsScreen(viewModel = diagnosticsViewModel)
+                        DiagnosticsScreen(
+                            viewModel = diagnosticsViewModel,
+                            isDarkModeEnabled = isDarkModeEnabled,
+                            onDarkModeToggle = onDarkModeToggle
+                        )
                     }
                 }
             }

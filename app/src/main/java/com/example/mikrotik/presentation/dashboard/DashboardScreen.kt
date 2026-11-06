@@ -24,10 +24,10 @@ import com.example.mikrotik.presentation.ui.components.AppTopBar
 import com.example.mikrotik.presentation.ui.theme.AppIcons
 import com.example.mikrotik.ui.theme.AppPalette
 
-private val DeepGreenHeader = AppPalette.TextNavy
-private val RichGreenButton = AppPalette.Teal
-private val SeamlessCardBg = AppPalette.Card
-private val WatermarkLineColor = AppPalette.Border
+private val DeepGreenHeader get() = AppPalette.TextNavy
+private val RichGreenButton get() = AppPalette.Teal
+private val SeamlessCardBg get() = AppPalette.Card
+private val WatermarkLineColor get() = AppPalette.Border
 
 @Composable
 fun DashboardScreen(

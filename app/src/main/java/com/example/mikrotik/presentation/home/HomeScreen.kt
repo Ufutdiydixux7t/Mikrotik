@@ -27,12 +27,12 @@ import com.example.mikrotik.presentation.ui.components.AppWaveDecoration
 import com.example.mikrotik.presentation.ui.theme.AppIcons
 import com.example.mikrotik.ui.theme.AppPalette
 
-private val DeepGreenHeader = AppPalette.TextNavy
-private val RichGreenButton = AppPalette.Teal
-private val SeamlessCardBg = AppPalette.Card
-private val WatermarkLineColor = AppPalette.Border
-private val PillGreenBg = AppPalette.MintStrong
-private val PillGreenDot = AppPalette.Positive
+private val DeepGreenHeader get() = AppPalette.TextNavy
+private val RichGreenButton get() = AppPalette.Teal
+private val SeamlessCardBg get() = AppPalette.Card
+private val WatermarkLineColor get() = AppPalette.Border
+private val PillGreenBg get() = AppPalette.MintStrong
+private val PillGreenDot get() = AppPalette.Positive
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -221,7 +221,7 @@ fun StatusCard(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
-                    .background(if (isActive) PillGreenBg else Color(0xFFEEEEEE))
+                    .background(if (isActive) PillGreenBg else AppPalette.Border)
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Row(
@@ -230,7 +230,7 @@ fun StatusCard(
                 ) {
                     Text(
                         text = if (isActive) "مفعل" else "متوقف",
-                        color = if (isActive) PillGreenDot else Color.Gray,
+                        color = if (isActive) PillGreenDot else AppPalette.Muted,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -238,7 +238,7 @@ fun StatusCard(
                         modifier = Modifier
                             .size(10.dp)
                             .clip(CircleShape)
-                            .background(if (isActive) PillGreenDot else Color.Gray)
+                            .background(if (isActive) PillGreenDot else AppPalette.Muted)
                     )
                 }
             }
@@ -297,8 +297,22 @@ fun ConnectedDevicesSection(
 
         if (isExpanded) {
             when {
-                hotspotState !is HotspotState.Enabled -> Text(
-                    text = "الـ Hotspot متوقف حالياً. قم بتشغيله لاكتشاف الأجهزة المتصلة.",
+                hotspotState is HotspotState.Disabled -> Text(
+                    text = "نقطة الاتصال متوقفة؛ شغّلها لعرض الأجهزة المتصلة فعلياً.",
+                    fontSize = 13.sp,
+                    color = AppPalette.Muted,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                )
+                hotspotState is HotspotState.Enabling -> Text(
+                    text = "جارٍ تحديث حالة نقطة الاتصال والأجهزة…",
+                    fontSize = 13.sp,
+                    color = AppPalette.Muted,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                )
+                hotspotState is HotspotState.Error -> Text(
+                    text = hotspotState.message,
                     fontSize = 13.sp,
                     color = AppPalette.Muted,
                     textAlign = TextAlign.Center,
@@ -324,7 +338,7 @@ fun DeviceItemRow(device: ConnectedDevice) {
             .fillMaxWidth()
             .border(0.5.dp, WatermarkLineColor, RoundedCornerShape(14.dp)),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF3F8FC)),
+        colors = CardDefaults.cardColors(containerColor = AppPalette.Card),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(

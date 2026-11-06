@@ -22,10 +22,10 @@ import com.example.mikrotik.presentation.ui.components.AppBackground
 import com.example.mikrotik.presentation.ui.theme.AppIcons
 import com.example.mikrotik.ui.theme.AppPalette
 
-private val DeepGreenHeader = AppPalette.TextNavy
-private val RichGreenButton = AppPalette.Teal
-private val SeamlessCardBg = AppPalette.Card
-private val WatermarkLineColor = AppPalette.Border
+private val DeepGreenHeader get() = AppPalette.TextNavy
+private val RichGreenButton get() = AppPalette.Teal
+private val SeamlessCardBg get() = AppPalette.Card
+private val WatermarkLineColor get() = AppPalette.Border
 
 @Composable
 fun LoginScreen(
@@ -166,7 +166,7 @@ fun LoginScreen(
                     Text(
                         text = "أدخل البطاقة للاتصال بالإنترنت",
                         fontSize = 13.sp,
-                        color = Color.Gray,
+                        color = AppPalette.Muted,
                         textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(16.dp))
@@ -179,7 +179,7 @@ fun LoginScreen(
                                 text = "أدخل الكرت هنا",
                                 modifier = Modifier.fillMaxWidth(),
                                 textAlign = TextAlign.Center,
-                                color = Color.Gray
+                                color = AppPalette.Muted
                             )
                         },
                         leadingIcon = {
@@ -193,8 +193,8 @@ fun LoginScreen(
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = RichGreenButton,
                             unfocusedBorderColor = WatermarkLineColor,
-                            focusedContainerColor = Color(0xFFFAFCFB),
-                            unfocusedContainerColor = Color(0xFFFAFCFB)
+                            focusedContainerColor = AppPalette.Card,
+                            unfocusedContainerColor = AppPalette.Card
                         ),
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
@@ -283,7 +283,7 @@ fun LoginScreen(
                 Text(
                     text = "Powered by Hotspot",
                     fontSize = 12.sp,
-                    color = Color.Gray
+                    color = AppPalette.Muted
                 )
             }
         }
