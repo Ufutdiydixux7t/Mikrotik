@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
@@ -18,9 +19,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.mikrotik.core.captive.PortalTheme
 import com.example.mikrotik.core.root.RootStatus
 import com.example.mikrotik.core.root.SystemDiagnosticReport
-import com.example.mikrotik.presentation.login.LoginScreen
 import com.example.mikrotik.presentation.ui.components.AppTopBar
 import com.example.mikrotik.presentation.ui.theme.AppIcons
 
@@ -86,19 +87,10 @@ fun DiagnosticsScreen(
                     )
                 }
                 SettingsDestination.LoginPage -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        BackToSettingsButton(
-                            onClick = { currentDestination = SettingsDestination.MainSettings }
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Box(modifier = Modifier.fillMaxWidth().height(650.dp)) {
-                            LoginScreen()
-                        }
-                    }
+                    PortalAppearanceSettingsScreen(
+                        viewModel = viewModel,
+                        onBack = { currentDestination = SettingsDestination.MainSettings }
+                    )
                 }
                 SettingsDestination.AboutUs -> {
                     AboutUsDetailScreen(
@@ -118,6 +110,102 @@ fun DiagnosticsScreen(
                         message = "اللغة الحالية: العربية (اللغة الافتراضية)",
                         onBack = { currentDestination = SettingsDestination.MainSettings }
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PortalAppearanceSettingsScreen(
+    viewModel: DiagnosticsViewModel,
+    onBack: () -> Unit
+) {
+    val appearance by viewModel.portalAppearance.collectAsState()
+    val colors = mapOf(
+        PortalTheme.GREEN to Color(0xFF138D86),
+        PortalTheme.BLUE to Color(0xFF1976D2),
+        PortalTheme.RED to Color(0xFFD84343)
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        BackToSettingsButton(onClick = onBack)
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, WatermarkLineColor, RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    text = "مظهر صفحة الدخول للأجهزة",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = DeepGreenHeader
+                )
+                Text(
+                    text = "غيّر الاسم واللون اللذين يراهما المتصلون عند فتح بوابة تسجيل الدخول.",
+                    fontSize = 13.sp,
+                    color = Color.DarkGray,
+                    lineHeight = 20.sp
+                )
+                OutlinedTextField(
+                    value = appearance.name,
+                    onValueChange = viewModel::updatePortalName,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("اسم واجهة تسجيل الدخول") },
+                    placeholder = { Text("مثال: AL-MADDI NET") },
+                    singleLine = true,
+                    supportingText = { Text("حتى ${com.example.mikrotik.core.captive.PortalAppearanceSettings.MAX_NAME_LENGTH} حرفاً؛ التغيير يُحفظ تلقائياً") }
+                )
+                Text(
+                    text = "لون الواجهة",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = DeepGreenHeader
+                )
+                PortalTheme.values().forEach { theme ->
+                    val selected = appearance.theme == theme
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { viewModel.updatePortalTheme(theme) }
+                            .background(if (selected) colors.getValue(theme).copy(alpha = 0.08f) else Color.Transparent)
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = selected,
+                            onClick = { viewModel.updatePortalTheme(theme) },
+                            colors = RadioButtonDefaults.colors(selectedColor = colors.getValue(theme))
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(18.dp)
+                                .background(colors.getValue(theme), RoundedCornerShape(9.dp))
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = theme.displayName,
+                            color = DeepGreenHeader,
+                            fontSize = 14.sp,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
                 }
             }
         }
@@ -185,6 +273,7 @@ fun MainSettingsList(
             SettingsItemRow(
                 icon = AppIcons.Login,
                 title = "واجهة تسجيل الدخول",
+                subtitle = "تعديل الاسم واللون للأجهزة المتصلة",
                 onClick = { onNavigate(SettingsDestination.LoginPage) }
             )
             HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)

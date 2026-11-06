@@ -25,7 +25,8 @@ class CaptivePortalServer @Inject constructor(
     private val activeSessionDao: ActiveSessionDao,
     private val blockedMacDao: BlockedMacDao,
     private val clientDiscoveryManager: ClientDiscoveryManager,
-    private val iptablesManager: IptablesManager
+    private val iptablesManager: IptablesManager,
+    private val portalAppearanceSettings: PortalAppearanceSettings
 ) {
 
     private var server: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
@@ -215,6 +216,13 @@ class CaptivePortalServer @Inject constructor(
         respondText(getHtmlLoginPage(), contentType = ContentType.Text.Html)
     }
 
+    private fun escapeHtml(value: String): String = value
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("\"", "&quot;")
+        .replace("'", "&#39;")
+
     private fun extractIpv4(remoteAddress: String): String? {
         val pattern = Regex("(?<![0-9])(\\d{1,3}(?:\\.\\d{1,3}){3})(?![0-9])")
         return pattern.findAll(remoteAddress)
@@ -292,15 +300,28 @@ class CaptivePortalServer @Inject constructor(
     }
 
     private fun getHtmlLoginPage(): String {
+        val appearance = portalAppearanceSettings.current()
+        val theme = appearance.theme
+        val portalName = escapeHtml(appearance.name)
         return """
         <!DOCTYPE html>
         <html lang="ar" dir="rtl">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>تسجيل الدخول - AL-MADDI NET</title>
+            <title>تسجيل الدخول - $portalName</title>
             <style>
                 * { box-sizing: border-box; }
+                :root {
+                    --portal-accent: ${theme.accent};
+                    --portal-accent-dark: ${theme.accentDark};
+                    --portal-tint: ${theme.tint};
+                    --portal-wave-light: ${theme.waveLight};
+                    --portal-wave-mid: ${theme.waveMid};
+                    --portal-wave-dark: ${theme.waveDark};
+                    --portal-wave-line: ${theme.waveLine};
+                    --portal-button-shadow: ${theme.buttonShadow};
+                }
                 body {
                     min-height: 100vh;
                     min-height: 100svh;
@@ -318,7 +339,7 @@ class CaptivePortalServer @Inject constructor(
                     inset: 0 auto auto 0;
                     width: 100%;
                     height: 190px;
-                    background: #DDF1ED;
+                    background: var(--portal-tint);
                     clip-path: polygon(0 0, 72% 0, 0 100%);
                     pointer-events: none;
                     z-index: 0;
@@ -405,23 +426,23 @@ class CaptivePortalServer @Inject constructor(
                 }
                 .input-field::placeholder { color: #71808B; }
                 .input-field:focus {
-                    border-color: #138D86;
-                    box-shadow: 0 0 0 3px rgba(19,141,134,0.12);
+                    border-color: var(--portal-accent);
+                    box-shadow: 0 0 0 3px var(--portal-button-shadow);
                 }
                 .btn-submit {
                     width: 100%;
                     min-height: 64px;
                     border: 0;
                     border-radius: 16px;
-                    background: #138D86;
+                    background: var(--portal-accent);
                     color: #FFFFFF;
                     font-family: inherit;
                     font-size: 20px;
                     font-weight: 700;
                     cursor: pointer;
-                    box-shadow: 0 8px 18px rgba(19,141,134,0.18);
+                    box-shadow: 0 8px 18px var(--portal-button-shadow);
                 }
-                .btn-submit:active { background: #0E756F; }
+                .btn-submit:active { background: var(--portal-accent-dark); }
                 .footer {
                     position: relative;
                     z-index: 1;
@@ -441,7 +462,7 @@ class CaptivePortalServer @Inject constructor(
                     height: 1px;
                     background: #CBD4D5;
                 }
-                .footer strong { color: #0F817B; }
+                .footer strong { color: var(--portal-accent); }
                 .waves {
                     position: fixed;
                     right: 0;
@@ -464,20 +485,20 @@ class CaptivePortalServer @Inject constructor(
             <div class="top-shape" aria-hidden="true"></div>
             <main class="portal-content">
                 <header class="brand-header">
-                    <svg class="logo-icon" viewBox="0 0 160 108" role="img" aria-label="AL-MADDI NET">
+                    <svg class="logo-icon" viewBox="0 0 160 108" role="img" aria-label="$portalName">
                         <path d="M20 29C53 1 107 1 140 29" fill="none" stroke="#102D46" stroke-width="11" stroke-linecap="round"/>
-                        <path d="M39 49C62 30 98 30 121 49" fill="none" stroke="#138D86" stroke-width="10" stroke-linecap="round"/>
-                        <path d="M59 69C71 59 89 59 101 69" fill="none" stroke="#138D86" stroke-width="9" stroke-linecap="round"/>
+                        <path d="M39 49C62 30 98 30 121 49" fill="none" stroke="${theme.accent}" stroke-width="10" stroke-linecap="round"/>
+                        <path d="M59 69C71 59 89 59 101 69" fill="none" stroke="${theme.accent}" stroke-width="9" stroke-linecap="round"/>
                         <circle cx="80" cy="83" r="7" fill="#102D46"/>
-                        <path d="M14 94C51 103 104 98 145 52" fill="none" stroke="#138D86" stroke-width="7" stroke-linecap="round"/>
+                        <path d="M14 94C51 103 104 98 145 52" fill="none" stroke="${theme.accent}" stroke-width="7" stroke-linecap="round"/>
                     </svg>
-                    <div class="brand-title">AL-MADDI NET</div>
+                    <div class="brand-title">$portalName</div>
                 </header>
 
                 <section class="login-card">
                     <svg class="portal-mark" viewBox="0 0 64 56" aria-hidden="true">
-                        <path d="M8 15C21 4 43 4 56 15M16 27C25 19 39 19 48 27M25 39C29 35 35 35 39 39" fill="none" stroke="#138D86" stroke-width="6" stroke-linecap="round"/>
-                        <circle cx="32" cy="48" r="4" fill="#138D86"/>
+                        <path d="M8 15C21 4 43 4 56 15M16 27C25 19 39 19 48 27M25 39C29 35 35 35 39 39" fill="none" stroke="${theme.accent}" stroke-width="6" stroke-linecap="round"/>
+                        <circle cx="32" cy="48" r="4" fill="${theme.accent}"/>
                     </svg>
                     <div class="login-title">تسجيل الدخول</div>
                     <div class="login-subtitle">أدخل البطاقة للاتصال بالإنترنت</div>
@@ -501,10 +522,10 @@ class CaptivePortalServer @Inject constructor(
                 <span class="footer-line" aria-hidden="true"></span>
             </footer>
             <svg class="waves" viewBox="0 0 1200 320" preserveAspectRatio="none" aria-hidden="true">
-                <path d="M0 35C185 55 252 165 430 196C616 229 704 168 876 101C1024 44 1102 54 1200 38V320H0Z" fill="#E7F5F2"/>
-                <path d="M0 142C186 191 308 161 474 131C674 94 819 209 1002 185C1096 172 1147 143 1200 132V320H0Z" fill="#B9E3DA" opacity="0.92"/>
-                <path d="M0 207C196 199 278 222 452 265C637 311 796 299 976 254C1068 231 1131 199 1200 181V320H0Z" fill="#168F87" opacity="0.92"/>
-                <path d="M0 250C181 204 288 208 444 240C606 274 704 302 843 278C1002 250 1082 183 1200 159" fill="none" stroke="#7ACCC2" stroke-width="2" opacity="0.75"/>
+                <path d="M0 35C185 55 252 165 430 196C616 229 704 168 876 101C1024 44 1102 54 1200 38V320H0Z" fill="${theme.waveLight}"/>
+                <path d="M0 142C186 191 308 161 474 131C674 94 819 209 1002 185C1096 172 1147 143 1200 132V320H0Z" fill="${theme.waveMid}" opacity="0.92"/>
+                <path d="M0 207C196 199 278 222 452 265C637 311 796 299 976 254C1068 231 1131 199 1200 181V320H0Z" fill="${theme.waveDark}" opacity="0.92"/>
+                <path d="M0 250C181 204 288 208 444 240C606 274 704 302 843 278C1002 250 1082 183 1200 159" fill="none" stroke="${theme.waveLine}" stroke-width="2" opacity="0.75"/>
             </svg>
         </body>
         </html>
@@ -512,15 +533,20 @@ class CaptivePortalServer @Inject constructor(
     }
 
     private fun getHtmlResultPage(title: String, message: String, isSuccess: Boolean): String {
-        val color = if (isSuccess) "#00796B" else "#C62828"
+        val appearance = portalAppearanceSettings.current()
+        val theme = appearance.theme
+        val portalName = escapeHtml(appearance.name)
+        val safeTitle = escapeHtml(title)
+        val safeMessage = escapeHtml(message)
+        val color = if (isSuccess) theme.accent else "#C62828"
         val continueUrl = if (isSuccess) "http://neverssl.com/" else "/"
         val continueLabel = if (isSuccess) "انتقال إلى الرئيسية" else "العودة"
         val successIcon = if (isSuccess) {
             """
             <div class="success-icon" role="img" aria-label="تم بنجاح">
                 <svg viewBox="0 0 64 64" aria-hidden="true">
-                    <circle cx="32" cy="32" r="29" fill="#E4F4EF" stroke="#138D86" stroke-width="3"/>
-                    <path d="M18 33l9 9 19-21" fill="none" stroke="#138D86" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="32" cy="32" r="29" fill="${theme.tint}" stroke="${theme.accent}" stroke-width="3"/>
+                    <path d="M18 33l9 9 19-21" fill="none" stroke="${theme.accent}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
             </div>
             """.trimIndent()
@@ -533,7 +559,7 @@ class CaptivePortalServer @Inject constructor(
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>$title - AL-MADDI NET</title>
+            <title>$safeTitle - $portalName</title>
             <style>
                 body {
                     background-color: #E6F0EC;
@@ -578,7 +604,7 @@ class CaptivePortalServer @Inject constructor(
                     display: inline-block;
                     min-width: 220px;
                     padding: 12px 24px;
-                    background-color: #138D86;
+                    background-color: ${theme.accent};
                     color: white;
                     text-decoration: none;
                     border-radius: 12px;
@@ -592,8 +618,8 @@ class CaptivePortalServer @Inject constructor(
             <div class="container">
                 <div class="card">
                     $successIcon
-                    <div class="title">$title</div>
-                    <div class="message">$message</div>
+                    <div class="title">$safeTitle</div>
+                    <div class="message">$safeMessage</div>
                     <a href="$continueUrl" class="btn-back">$continueLabel</a>
                 </div>
             </div>
