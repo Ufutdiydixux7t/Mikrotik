@@ -62,10 +62,10 @@ class CaptivePortalServer @Inject constructor(
 
                     // --- Captive Portal OS Detection Probes ---
                     get("/generate_204") {
-                        call.respondRedirect("http://${getActiveHotspotIpAddress()}:$port/")
+                        call.respondRedirect(getCaptivePortalUrl())
                     }
                     get("/gen_204") {
-                        call.respondRedirect("http://${getActiveHotspotIpAddress()}:$port/")
+                        call.respondRedirect(getCaptivePortalUrl())
                     }
                     get("/hotspot-detect.html") {
                         call.respondText(getHtmlLoginPage(), contentType = ContentType.Text.Html)
@@ -74,10 +74,13 @@ class CaptivePortalServer @Inject constructor(
                         call.respondText(getHtmlLoginPage(), contentType = ContentType.Text.Html)
                     }
                     get("/ncsi.txt") {
-                        call.respondText("Microsoft NCSI", contentType = ContentType.Text.Plain)
+                        call.respondRedirect(getCaptivePortalUrl())
                     }
                     get("/connecttest.txt") {
-                        call.respondText("Microsoft Connect Test", contentType = ContentType.Text.Plain)
+                        call.respondRedirect(getCaptivePortalUrl())
+                    }
+                    get("/redirect") {
+                        call.respondRedirect(getCaptivePortalUrl())
                     }
 
                     // Login submission
@@ -182,6 +185,8 @@ class CaptivePortalServer @Inject constructor(
 
         return getLocalAccessUrl()
     }
+
+    private fun getCaptivePortalUrl(): String = "http://${getActiveHotspotIpAddress()}:$port/"
 
     private fun extractIpv4(remoteAddress: String): String? {
         val pattern = Regex("(?<![0-9])(\\d{1,3}(?:\\.\\d{1,3}){3})(?![0-9])")
