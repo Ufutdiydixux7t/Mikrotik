@@ -8,7 +8,11 @@ import io.ktor.server.cio.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import com.example.mikrotik.core.hotspot.ClientDiscoveryManager
+import com.example.mikrotik.core.network.IptablesManager
+import com.example.mikrotik.data.db.dao.ActiveSessionDao
 import com.example.mikrotik.data.db.dao.VoucherDao
+import com.example.mikrotik.data.db.entity.ActiveSessionEntity
 import java.net.NetworkInterface
 import java.util.Locale
 import javax.inject.Inject
@@ -16,7 +20,10 @@ import javax.inject.Singleton
 
 @Singleton
 class CaptivePortalServer @Inject constructor(
-    private val voucherDao: VoucherDao
+    private val voucherDao: VoucherDao,
+    private val activeSessionDao: ActiveSessionDao,
+    private val clientDiscoveryManager: ClientDiscoveryManager,
+    private val iptablesManager: IptablesManager
 ) {
 
     private var server: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
@@ -78,30 +85,57 @@ class CaptivePortalServer @Inject constructor(
                         val params = call.receiveParameters()
                         val code = params["code"].orEmpty().trim().uppercase(Locale.ROOT)
                         Log.d("CaptivePortalServer", "Voucher login attempt submitted")
-                        
+
                         if (code.isBlank()) {
                             call.respondText(getHtmlResultPage("خطأ", "يرجى إدخال كود الكرت بشكل صحيح.", false), contentType = ContentType.Text.Html)
                         } else {
                             val now = System.currentTimeMillis()
-                            val activated = voucherDao.activateVoucherIfValid(code, now)
+                            val clientIp = extractIpv4(call.request.local.remoteAddress)
+                            val client = clientIp?.let { ip ->
+                                clientDiscoveryManager.getConnectedDevices().firstOrNull { it.ipAddress == ip }
+                            }
+                            if (client == null) {
+                                call.respondText(
+                                    getHtmlResultPage("تعذر تحديد الجهاز", "أعد الاتصال بشبكة Hotspot ثم حاول مرة أخرى.", false),
+                                    contentType = ContentType.Text.Html
+                                )
+                                return@post
+                            }
+
+                            val activated = voucherDao.activateVoucherIfValid(code, client.macAddress, now)
                             val voucher = voucherDao.getVoucherByCode(code)
 
                             if (activated > 0 && voucher != null) {
+                                val isAllowed = iptablesManager.authorizeMacAddress(client.macAddress)
+                                if (!isAllowed) {
+                                    call.respondText(
+                                        getHtmlResultPage("تعذر فتح الاتصال", "تم التحقق من البطاقة، لكن تعذر تطبيق قاعدة السماح على الهاتف. أعد المحاولة أو راجع التشخيص.", false),
+                                        contentType = ContentType.Text.Html
+                                    )
+                                    return@post
+                                }
+                                activeSessionDao.insertOrUpdateSession(
+                                    ActiveSessionEntity(
+                                        macAddress = client.macAddress,
+                                        ipAddress = client.ipAddress,
+                                        voucherCode = code
+                                    )
+                                )
                                 val remainingBytes = (voucher.dataLimitBytes - voucher.bytesUsedSoFar).coerceAtLeast(0L)
                                 val remainingMb = remainingBytes / (1024L * 1024L)
                                 val firstUse = voucher.firstUsedAt ?: now
                                 val remainingMinutes = ((firstUse + voucher.durationMinutes * 60_000L - now) / 60_000L)
                                     .coerceAtLeast(0L)
-                                val message = "البطاقة صحيحة. المتبقي: $remainingMb MB و$remainingMinutes دقيقة. " +
-                                    "تم التحقق من البطاقة فقط؛ تمرير الإنترنت الفعلي سيُفعّل في المرحلة التالية."
+                                val message = "تم قبول البطاقة والسماح لهذا الجهاز. المتبقي: $remainingMb MB و$remainingMinutes دقيقة."
                                 call.respondText(
-                                    getHtmlResultPage("تم التحقق من البطاقة", message, true),
+                                    getHtmlResultPage("تم قبول البطاقة", message, true),
                                     contentType = ContentType.Text.Html
                                 )
                             } else {
                                 val reason = when {
                                     voucher == null -> "رمز البطاقة غير موجود."
                                     voucher.isBlocked -> "هذه البطاقة محظورة."
+                                    voucher.boundMacAddress != null && voucher.boundMacAddress != client.macAddress -> "هذه البطاقة مستخدمة على جهاز آخر."
                                     voucher.bytesUsedSoFar >= voucher.dataLimitBytes -> "انتهى حجم البيانات المسموح لهذه البطاقة."
                                     voucher.firstUsedAt != null && now >= voucher.firstUsedAt + voucher.durationMinutes * 60_000L ->
                                         "انتهت مدة صلاحية البطاقة."
@@ -126,6 +160,13 @@ class CaptivePortalServer @Inject constructor(
         }
 
         return getLocalAccessUrl()
+    }
+
+    private fun extractIpv4(remoteAddress: String): String? {
+        return Regex("(?:^|/)(\\d{1,3}(?:\\.\\d{1,3}){3})(?::\\d+)?$")
+            .find(remoteAddress.trim())
+            ?.groupValues
+            ?.getOrNull(1)
     }
 
     @Synchronized

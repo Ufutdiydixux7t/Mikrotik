@@ -24,7 +24,11 @@ class HotspotController @Inject constructor(
     suspend fun getHotspotStatus(): HotspotState = withContext(Dispatchers.IO) {
         val activeInterface = findActiveApInterface()
         if (activeInterface != null) {
-            HotspotState.Enabled(activeInterface)
+            if (configureCaptivePortal(activeInterface)) {
+                HotspotState.Enabled(activeInterface)
+            } else {
+                HotspotState.Error("نقطة الاتصال تعمل، لكن تعذر تأمينها ببوابة البطاقات على $activeInterface")
+            }
         } else {
             HotspotState.Disabled
         }
@@ -53,9 +57,9 @@ class HotspotController @Inject constructor(
 
         val activeIface = findActiveApInterface()
         if (activeIface != null) {
-            // Apply iptables DNAT redirect rule and start Ktor server
-            iptablesManager.applyCaptivePortalRedirect(activeIface, 8080)
-            captivePortalServer.startServer()
+            if (!configureCaptivePortal(activeIface)) {
+                return@withContext HotspotState.Error("تعذر تثبيت قواعد حجب الأجهزة غير المسجلة على $activeIface")
+            }
             HotspotState.Enabled(activeIface)
         } else {
             val detailedErr = logs.joinToString(" | ")
@@ -68,11 +72,6 @@ class HotspotController @Inject constructor(
      */
     suspend fun stopHotspot(): HotspotState = withContext(Dispatchers.IO) {
         val activeIface = findActiveApInterface()
-        if (activeIface != null) {
-            iptablesManager.removeCaptivePortalRedirect(activeIface, 8080)
-        }
-        captivePortalServer.stopServer()
-
         rootShellManager.executeCommand("settings put global soft_ap_enabled 0")
         rootShellManager.executeCommand("am broadcast -a com.samsung.android.net.wifi.WIFI_AP_STATE_CHANGED --ei wifi_ap_state 11")
         rootShellManager.executeCommand("am broadcast -a android.net.conn.TETHER_STATE_CHANGED")
@@ -81,10 +80,22 @@ class HotspotController @Inject constructor(
 
         val newIface = findActiveApInterface()
         if (newIface == null) {
+            if (activeIface != null) {
+                iptablesManager.removeCaptivePortalRedirect(activeIface, 8080)
+                iptablesManager.removeCaptiveGate(activeIface)
+            }
+            captivePortalServer.stopServer()
             HotspotState.Disabled
         } else {
-            HotspotState.Error("Hotspot interface $newIface is still active.")
+            HotspotState.Error("Hotspot interface $newIface is still active; security rules remain enabled.")
         }
+    }
+
+    private suspend fun configureCaptivePortal(interfaceName: String): Boolean {
+        if (!iptablesManager.installCaptiveGate(interfaceName)) return false
+        if (!iptablesManager.applyCaptivePortalRedirect(interfaceName, 8080)) return false
+        captivePortalServer.startServer()
+        return captivePortalServer.isServerRunning()
     }
 
     /**
