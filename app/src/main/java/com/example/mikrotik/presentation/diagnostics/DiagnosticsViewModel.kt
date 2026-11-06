@@ -2,6 +2,9 @@ package com.example.mikrotik.presentation.diagnostics
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.mikrotik.core.captive.PortalAppearance
+import com.example.mikrotik.core.captive.PortalAppearanceSettings
+import com.example.mikrotik.core.captive.PortalTheme
 import com.example.mikrotik.core.root.RootDiagnostics
 import com.example.mikrotik.core.root.SystemDiagnosticReport
 import com.example.mikrotik.data.db.dao.VoucherDao
@@ -24,11 +27,15 @@ sealed class DiagnosticsUiState {
 @HiltViewModel
 class DiagnosticsViewModel @Inject constructor(
     private val rootDiagnostics: RootDiagnostics,
-    private val voucherDao: VoucherDao
+    private val voucherDao: VoucherDao,
+    private val portalAppearanceSettings: PortalAppearanceSettings
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<DiagnosticsUiState>(DiagnosticsUiState.Loading)
     val uiState: StateFlow<DiagnosticsUiState> = _uiState.asStateFlow()
+
+    private val _portalAppearance = MutableStateFlow(portalAppearanceSettings.current())
+    val portalAppearance: StateFlow<PortalAppearance> = _portalAppearance.asStateFlow()
 
     init {
         runDiagnostics()
@@ -58,5 +65,17 @@ class DiagnosticsViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    fun updatePortalName(name: String) {
+        portalAppearanceSettings.saveName(name)
+        _portalAppearance.value = _portalAppearance.value.copy(
+            name = name.take(PortalAppearanceSettings.MAX_NAME_LENGTH)
+        )
+    }
+
+    fun updatePortalTheme(theme: PortalTheme) {
+        portalAppearanceSettings.saveTheme(theme)
+        _portalAppearance.value = portalAppearanceSettings.current()
     }
 }
