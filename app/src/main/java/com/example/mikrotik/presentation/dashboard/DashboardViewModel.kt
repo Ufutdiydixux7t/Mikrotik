@@ -64,16 +64,17 @@ class DashboardViewModel @Inject constructor(
 
     private suspend fun loadUsageInfo(session: ActiveSessionEntity): DeviceUsageInfo {
         val voucher = voucherDao.getVoucherByCode(session.voucherCode)
-        val measuredBytes = iptablesManager.getDeviceUsageBytes(session.macAddress, session.ipAddress)
-        val fallbackBytes = session.bytesDownloaded + session.bytesUploaded
+        val liveCounterBytes = iptablesManager.getDeviceUsageBytes(session.macAddress, session.ipAddress)
+        val storedVoucherBytes = voucher?.bytesUsedSoFar ?: 0L
+        val sessionFallbackBytes = session.bytesDownloaded + session.bytesUploaded
         val savedName = deviceNamePreferences.getString(nameKey(session.macAddress), null)
             ?.trim()?.takeIf { it.isNotEmpty() }
         val detectedName = savedName ?: "جهاز ${session.macAddress.takeLast(5)}"
         return DeviceUsageInfo(
-            bytesUsed = (measuredBytes ?: fallbackBytes).coerceAtLeast(0L),
+            bytesUsed = maxOf(liveCounterBytes ?: 0L, storedVoucherBytes, sessionFallbackBytes).coerceAtLeast(0L),
             quotaBytes = voucher?.dataLimitBytes?.coerceAtLeast(0L) ?: 0L,
             displayName = detectedName,
-            isMeasured = measuredBytes != null || fallbackBytes > 0L
+            isMeasured = liveCounterBytes != null || storedVoucherBytes > 0L || sessionFallbackBytes > 0L
         )
     }
 

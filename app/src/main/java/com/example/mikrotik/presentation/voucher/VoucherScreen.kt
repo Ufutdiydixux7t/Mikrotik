@@ -605,4 +605,4 @@ private fun VoucherEntity.expiryTime(): Long? =
     firstUsedAt?.let { it + durationMinutes * 60_000L }
 
 private fun VoucherEntity.isExpiredAt(now: Long): Boolean =
-    expiryTime()?.let { now >= it } ?: false
+    bytesUsedSoFar >= dataLimitBytes || (expiryTime()?.let { now >= it } ?: false)

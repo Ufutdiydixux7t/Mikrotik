@@ -14,6 +14,9 @@ interface ActiveSessionDao {
     @Query("SELECT * FROM active_sessions WHERE isActive = 1 ORDER BY connectedAt DESC")
     fun getActiveSessionsFlow(): Flow<List<ActiveSessionEntity>>
 
+    @Query("SELECT * FROM active_sessions WHERE isActive = 1 ORDER BY connectedAt DESC")
+    suspend fun getActiveSessionsSnapshot(): List<ActiveSessionEntity>
+
     @Query("SELECT * FROM active_sessions WHERE macAddress = :macAddress LIMIT 1")
     suspend fun getSessionByMac(macAddress: String): ActiveSessionEntity?
 
