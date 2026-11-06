@@ -97,12 +97,12 @@ fun MainScreen(
                                         },
                                         contentDescription = tab.title,
                                         tint = contentColor,
-                                        modifier = Modifier.size(30.dp)
+                                        modifier = Modifier.size(26.dp)
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = tab.title,
-                                        fontSize = 14.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                         color = contentColor,
                                         maxLines = 1
