@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -41,6 +42,12 @@ private val PageBackground = Color(0xFFE6F0EC)
 private val SeamlessCardBg = Color(0xFFFFFFFF)
 private val WatermarkLineColor = Color(0xFFC5E0D6)
 
+enum class VoucherFilterTab(val title: String) {
+    UNUSED("غير مستخدمة"),
+    ACTIVE("نشطة"),
+    EXPIRED("منتهية")
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VoucherScreen(
@@ -51,6 +58,7 @@ fun VoucherScreen(
     val creationError by viewModel.creationError.collectAsState()
     val context = LocalContext.current
 
+    var selectedFilterTab by remember { mutableStateOf(VoucherFilterTab.UNUSED) }
     var selectedDurationIndex by rememberSaveable { mutableIntStateOf(0) }
     var dataAmount by rememberSaveable { mutableStateOf("500") }
     var selectedDataUnit by rememberSaveable { mutableStateOf(VoucherDataUnit.MB) }
@@ -310,36 +318,79 @@ fun VoucherScreen(
                 }
             }
 
-            VoucherStatusSection(
-                title = "غير مستخدمة",
-                vouchers = unusedVouchers,
-                emptyMessage = "لا توجد بطاقات غير مستخدمة حالياً.",
-                statusTint = Color(0xFF757575),
-                statusBackground = Color(0xFFF1F3F4),
-                deleteError = deleteError,
-                onCopy = copyVoucherCode,
-                onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
-            )
-            VoucherStatusSection(
-                title = "نشطة",
-                vouchers = activeVouchers,
-                emptyMessage = "لا توجد بطاقات نشطة حالياً.",
-                statusTint = Color(0xFF2E7D32),
-                statusBackground = Color(0xFFE8F5E9),
-                deleteError = deleteError,
-                onCopy = copyVoucherCode,
-                onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
-            )
-            VoucherStatusSection(
-                title = "منتهية",
-                vouchers = expiredVouchers,
-                emptyMessage = "لا توجد بطاقات منتهية حالياً.",
-                statusTint = Color(0xFFC62828),
-                statusBackground = Color(0xFFFFEBEE),
-                deleteError = deleteError,
-                onCopy = copyVoucherCode,
-                onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
-            )
+            // Filter Tabs (3 buttons: غير مستخدمة، نشطة، منتهية)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val filterTabs = listOf(
+                    VoucherFilterTab.UNUSED to unusedVouchers.size,
+                    VoucherFilterTab.ACTIVE to activeVouchers.size,
+                    VoucherFilterTab.EXPIRED to expiredVouchers.size
+                )
+
+                filterTabs.forEach { (tab, count) ->
+                    val isSelected = selectedFilterTab == tab
+                    Surface(
+                        onClick = { selectedFilterTab = tab },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) RichGreenButton else SeamlessCardBg,
+                        border = BorderStroke(1.dp, if (isSelected) RichGreenButton else WatermarkLineColor),
+                        shadowElevation = if (isSelected) 2.dp else 0.dp
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${tab.title} ($count)",
+                                fontSize = 13.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                color = if (isSelected) Color.White else DeepGreenHeader
+                            )
+                        }
+                    }
+                }
+            }
+
+            when (selectedFilterTab) {
+                VoucherFilterTab.UNUSED -> VoucherStatusSection(
+                    title = "بطاقات غير مستخدمة",
+                    vouchers = unusedVouchers,
+                    emptyMessage = "لا توجد بطاقات غير مستخدمة حالياً.",
+                    statusTint = Color(0xFF757575),
+                    statusBackground = Color(0xFFF1F3F4),
+                    deleteError = deleteError,
+                    onCopy = copyVoucherCode,
+                    onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
+                )
+                VoucherFilterTab.ACTIVE -> VoucherStatusSection(
+                    title = "بطاقات نشطة",
+                    vouchers = activeVouchers,
+                    emptyMessage = "لا توجد بطاقات نشطة حالياً.",
+                    statusTint = Color(0xFF2E7D32),
+                    statusBackground = Color(0xFFE8F5E9),
+                    deleteError = deleteError,
+                    onCopy = copyVoucherCode,
+                    onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
+                )
+                VoucherFilterTab.EXPIRED -> VoucherStatusSection(
+                    title = "بطاقات منتهية",
+                    vouchers = expiredVouchers,
+                    emptyMessage = "لا توجد بطاقات منتهية حالياً.",
+                    statusTint = Color(0xFFC62828),
+                    statusBackground = Color(0xFFFFEBEE),
+                    deleteError = deleteError,
+                    onCopy = copyVoucherCode,
+                    onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
+                )
+            }
         }
     }
 }

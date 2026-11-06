@@ -101,9 +101,7 @@ fun DiagnosticsScreen(
                     }
                 }
                 SettingsDestination.AboutUs -> {
-                    BlankDetailScreen(
-                        title = "نظرة عنا",
-                        message = "Mini MikroTik - نظام إدارة الشبكات والروتر المصغر عبر صلاحيات Root.",
+                    AboutUsDetailScreen(
                         onBack = { currentDestination = SettingsDestination.MainSettings }
                     )
                 }
@@ -321,6 +319,109 @@ fun SystemInfoDetailScreen(
                     dbStatus = uiState.databaseStatus,
                     onRefresh = onRefresh
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun AboutUsDetailScreen(
+    onBack: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        BackToSettingsButton(onClick = onBack)
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, WatermarkLineColor, RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = AppIcons.Info,
+                    contentDescription = null,
+                    tint = RichGreenButton,
+                    modifier = Modifier.size(48.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "Mini MikroTik",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = DeepGreenHeader
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "نظام إدارة الشبكات والروتر المصغر",
+                    fontSize = 13.sp,
+                    color = Color.Gray
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "نظرة عن المشروع",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = DeepGreenHeader,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Start
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "نظام متكامل لإدارة شبكات الهوتسبوت (Hotspot) وتوليد وإنشاء كروت وبطاقات الإنترنت، وتتبع الجلسات النشطة واستهلاك البيانات للمشتركين، بالإضافة إلى التحكم بإعدادات التوجيه والجدار الناري عبر صلاحيات الـ Root.",
+                    fontSize = 14.sp,
+                    color = Color.DarkGray,
+                    lineHeight = 22.sp,
+                    textAlign = TextAlign.Start
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = PageBackground)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "تم تطوير هذا النظام بواسطة م/محمد المدي",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = DeepGreenHeader,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
             }
         }
     }
