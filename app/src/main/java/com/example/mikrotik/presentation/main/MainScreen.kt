@@ -20,6 +20,7 @@ import com.example.mikrotik.presentation.diagnostics.DiagnosticsScreen
 import com.example.mikrotik.presentation.diagnostics.DiagnosticsViewModel
 import com.example.mikrotik.presentation.home.HomeScreen
 import com.example.mikrotik.presentation.home.HomeViewModel
+import com.example.mikrotik.presentation.ui.components.AppTopBar
 import com.example.mikrotik.presentation.ui.theme.AppIcons
 import com.example.mikrotik.presentation.voucher.VoucherScreen
 import com.example.mikrotik.presentation.voucher.VoucherViewModel
@@ -145,21 +146,7 @@ fun PlaceholderTabScreen(title: String, description: String) {
             .fillMaxSize()
             .background(PageBackground)
     ) {
-        // Top Header Bar
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(DeepGreenHeader)
-                .padding(vertical = 20.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = title,
-                color = Color.White,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        AppTopBar(title = title, startIcon = AppIcons.Info)
 
         // Content Area with Seamless Card
         Column(

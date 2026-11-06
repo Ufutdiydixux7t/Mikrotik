@@ -1,8 +1,11 @@
 package com.example.mikrotik.presentation.voucher
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -18,10 +21,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import com.example.mikrotik.data.db.entity.VoucherEntity
+import com.example.mikrotik.presentation.ui.components.AppTopBar
 import com.example.mikrotik.presentation.ui.theme.AppIcons
+import kotlinx.coroutines.delay
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.text.SimpleDateFormat
@@ -41,10 +49,29 @@ fun VoucherScreen(
     val vouchers by viewModel.vouchers.collectAsState()
     val deleteError by viewModel.deleteError.collectAsState()
     val creationError by viewModel.creationError.collectAsState()
+    val context = LocalContext.current
 
     var selectedDurationIndex by rememberSaveable { mutableIntStateOf(0) }
     var dataAmount by rememberSaveable { mutableStateOf("500") }
     var selectedDataUnit by rememberSaveable { mutableStateOf(VoucherDataUnit.MB) }
+    var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(30_000)
+            currentTime = System.currentTimeMillis()
+        }
+    }
+
+    val unusedVouchers = vouchers.filter { !it.isUsed && !it.isExpiredAt(currentTime) }
+    val activeVouchers = vouchers.filter { it.isUsed && !it.isExpiredAt(currentTime) }
+    val expiredVouchers = vouchers.filter { it.isExpiredAt(currentTime) }
+
+    val copyVoucherCode: (String) -> Unit = { code ->
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("Voucher code", code))
+        Toast.makeText(context, "تم نسخ رمز البطاقة", Toast.LENGTH_SHORT).show()
+    }
 
     val durationOptions = listOf("يوم واحد", "7 أيام", "30 يوماً")
 
@@ -55,34 +82,7 @@ fun VoucherScreen(
             .fillMaxSize()
             .background(PageBackground)
     ) {
-        // Top Header Bar
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(DeepGreenHeader)
-                .padding(horizontal = 16.dp, vertical = 18.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "‹",
-                color = Color.White,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "إنشاء بطاقة",
-                color = Color.White,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Icon(
-                imageVector = AppIcons.CreditCard,
-                contentDescription = "Card",
-                tint = Color.White,
-                modifier = Modifier.size(24.dp)
-            )
-        }
+        AppTopBar(title = "إنشاء بطاقة", startIcon = AppIcons.CreditCard)
 
         // Scrollable Content
         Column(
@@ -129,7 +129,12 @@ fun VoucherScreen(
                                     .background(Color(0xFFE8F5E9)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("⏱", fontSize = 10.sp)
+                                Icon(
+                                    imageVector = AppIcons.Clock,
+                                    contentDescription = "مدة الصلاحية",
+                                    tint = RichGreenButton,
+                                    modifier = Modifier.size(14.dp)
+                                )
                             }
                         }
 
@@ -191,7 +196,12 @@ fun VoucherScreen(
                                     .background(Color(0xFFE8F5E9)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("📦", fontSize = 10.sp)
+                                Icon(
+                                    imageVector = AppIcons.Inventory,
+                                    contentDescription = "حد استهلاك البطاقة",
+                                    tint = RichGreenButton,
+                                    modifier = Modifier.size(14.dp)
+                                )
                             }
                         }
 
@@ -300,155 +310,207 @@ fun VoucherScreen(
                 }
             }
 
-            // Section Header: Created Vouchers
-            Row(
+            VoucherStatusSection(
+                title = "غير مستخدمة",
+                vouchers = unusedVouchers,
+                emptyMessage = "لا توجد بطاقات غير مستخدمة حالياً.",
+                statusTint = Color(0xFF757575),
+                statusBackground = Color(0xFFF1F3F4),
+                deleteError = deleteError,
+                onCopy = copyVoucherCode,
+                onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
+            )
+            VoucherStatusSection(
+                title = "نشطة",
+                vouchers = activeVouchers,
+                emptyMessage = "لا توجد بطاقات نشطة حالياً.",
+                statusTint = Color(0xFF2E7D32),
+                statusBackground = Color(0xFFE8F5E9),
+                deleteError = deleteError,
+                onCopy = copyVoucherCode,
+                onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
+            )
+            VoucherStatusSection(
+                title = "منتهية",
+                vouchers = expiredVouchers,
+                emptyMessage = "لا توجد بطاقات منتهية حالياً.",
+                statusTint = Color(0xFFC62828),
+                statusBackground = Color(0xFFFFEBEE),
+                deleteError = deleteError,
+                onCopy = copyVoucherCode,
+                onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun VoucherStatusSection(
+    title: String,
+    vouchers: List<VoucherEntity>,
+    emptyMessage: String,
+    statusTint: Color,
+    statusBackground: Color,
+    deleteError: String?,
+    onCopy: (String) -> Unit,
+    onDelete: (VoucherEntity, (Boolean) -> Unit) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = AppIcons.Inventory,
+                contentDescription = null,
+                tint = statusTint,
+                modifier = Modifier.size(22.dp)
+            )
+            Text(
+                text = title,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = DeepGreenHeader
+            )
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(statusBackground)
+                    .padding(horizontal = 10.dp, vertical = 3.dp)
             ) {
                 Text(
-                    text = "البطاقات التي تم إنشاؤها",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = DeepGreenHeader
+                    text = vouchers.size.toString(),
+                    color = statusTint,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFD5ECE9)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("📋", fontSize = 12.sp)
-                }
             }
+        }
 
-            if (vouchers.isEmpty()) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Text(
-                        text = "لا توجد بطاقات منشأة حالياً. قم بإنشاء بطاقة جديدة بالأعلى.",
-                        modifier = Modifier.fillMaxWidth().padding(24.dp),
-                        color = Color.Gray,
-                        fontSize = 13.sp,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
-                }
-            } else {
-                vouchers.forEach { voucher ->
-                    VoucherItemCard(
-                        voucher = voucher,
-                        deleteError = deleteError,
-                        onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
-                    )
-                }
+        if (vouchers.isEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
+                shape = RoundedCornerShape(14.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                Text(
+                    text = emptyMessage,
+                    modifier = Modifier.fillMaxWidth().padding(18.dp),
+                    color = Color.Gray,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        } else {
+            vouchers.forEach { voucher ->
+                VoucherItemCard(
+                    voucher = voucher,
+                    statusTitle = title,
+                    statusTint = statusTint,
+                    statusBackground = statusBackground,
+                    deleteError = deleteError,
+                    onCopy = onCopy,
+                    onDelete = onDelete
+                )
             }
         }
     }
 }
 
 @Composable
-fun VoucherItemCard(
+private fun VoucherItemCard(
     voucher: VoucherEntity,
+    statusTitle: String,
+    statusTint: Color,
+    statusBackground: Color,
     deleteError: String?,
+    onCopy: (String) -> Unit,
     onDelete: (VoucherEntity, (Boolean) -> Unit) -> Unit
 ) {
     var showDeleteConfirmation by remember(voucher.code) { mutableStateOf(false) }
     val dataText = formatVoucherDataLimit(voucher.dataLimitBytes)
     val daysText = "${voucher.durationMinutes / (24 * 60)} يوم"
-
-    val expiryTime = voucher.firstUsedAt?.let { it + voucher.durationMinutes * 60 * 1000 }
-    val isExpired = expiryTime != null && System.currentTimeMillis() >= expiryTime
-    val statusText = if (isExpired) "منتهية" else if (voucher.isUsed) "نشطة" else "غير مستخدمة"
-    val statusBg = if (isExpired) Color(0xFFFFEBEE) else if (voucher.isUsed) Color(0xFFE8F5E9) else Color(0xFFF5F5F5)
-    val statusColor = if (isExpired) Color(0xFFC62828) else if (voucher.isUsed) Color(0xFF2E7D32) else Color(0xFF757575)
-
+    val expiryTime = voucher.expiryTime()
     val dateFormat = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
     val expiryDateStr = expiryTime?.let { dateFormat.format(Date(it)) }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, WatermarkLineColor, RoundedCornerShape(14.dp)),
-        shape = RoundedCornerShape(14.dp),
+            .border(1.dp, statusTint.copy(alpha = 0.24f), RoundedCornerShape(18.dp)),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                text = "حذف",
-                modifier = Modifier.clickable { showDeleteConfirmation = true },
-                fontSize = 12.sp,
-                color = Color(0xFFC62828)
-            )
-
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                // Status Pill
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
-                        .background(statusBg)
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .background(statusBackground)
+                        .padding(horizontal = 11.dp, vertical = 5.dp)
                 ) {
                     Text(
-                        text = statusText,
-                        color = statusColor,
+                        text = statusTitle,
+                        color = statusTint,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
-
-                // Details
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = "$dataText - $daysText (${voucher.code})",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        color = DeepGreenHeader
+                Spacer(modifier = Modifier.weight(1f))
+                IconButton(onClick = { onCopy(voucher.code) }) {
+                    Icon(
+                        imageVector = AppIcons.ContentCopy,
+                        contentDescription = "نسخ رمز البطاقة",
+                        tint = RichGreenButton
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = when {
-                            expiryDateStr == null -> "تبدأ الصلاحية عند أول استخدام"
-                            isExpired -> "انتهت في: $expiryDateStr"
-                            else -> "تنتهي في: $expiryDateStr"
-                        },
-                        fontSize = 12.sp,
-                        color = Color.Gray
+                }
+                IconButton(onClick = { showDeleteConfirmation = true }) {
+                    Icon(
+                        imageVector = AppIcons.Delete,
+                        contentDescription = "حذف البطاقة",
+                        tint = Color(0xFFC62828)
                     )
                 }
             }
 
-            // Wi-Fi Icon Badge
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFE0F2F1)),
-                contentAlignment = Alignment.Center
+            Text(
+                text = voucher.code,
+                modifier = Modifier.fillMaxWidth(),
+                fontFamily = FontFamily.Monospace,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = DeepGreenHeader,
+                textAlign = TextAlign.Start
+            )
+            HorizontalDivider(color = WatermarkLineColor, thickness = 0.7.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(
-                    imageVector = AppIcons.WifiSignal,
-                    contentDescription = "Wifi",
-                    tint = RichGreenButton,
-                    modifier = Modifier.size(22.dp)
-                )
+                Text(text = "السعة: $dataText", fontSize = 13.sp, color = DeepGreenHeader)
+                Text(text = "الصلاحية: $daysText", fontSize = 13.sp, color = DeepGreenHeader)
             }
+            Text(
+                text = when {
+                    expiryDateStr == null -> "تبدأ الصلاحية عند أول استخدام"
+                    statusTitle == "منتهية" -> "انتهت الصلاحية: $expiryDateStr"
+                    else -> "تنتهي الصلاحية: $expiryDateStr"
+                },
+                modifier = Modifier.fillMaxWidth(),
+                fontSize = 12.sp,
+                color = Color.Gray,
+                textAlign = TextAlign.Start
+            )
         }
     }
 
@@ -487,3 +549,9 @@ private fun formatVoucherDataLimit(bytes: Long): String {
         .toPlainString()
     return "$amount $unit"
 }
+
+private fun VoucherEntity.expiryTime(): Long? =
+    firstUsedAt?.let { it + durationMinutes * 60_000L }
+
+private fun VoucherEntity.isExpiredAt(now: Long): Boolean =
+    expiryTime()?.let { now >= it } ?: false

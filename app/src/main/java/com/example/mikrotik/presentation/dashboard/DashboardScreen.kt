@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mikrotik.data.db.entity.ActiveSessionEntity
 import com.example.mikrotik.data.db.entity.BlockedMacEntity
+import com.example.mikrotik.presentation.ui.components.AppTopBar
 import com.example.mikrotik.presentation.ui.theme.AppIcons
 
 private val DeepGreenHeader = Color(0xFF0F3822)
@@ -40,33 +41,7 @@ fun DashboardScreen(
             .fillMaxSize()
             .background(PageBackground)
     ) {
-        // Top Header Bar
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(DeepGreenHeader)
-                .padding(vertical = 18.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = AppIcons.BarChart,
-                    contentDescription = "Dashboard",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "لوحة التحكم وإدارة الشبكة",
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
+        AppTopBar(title = "لوحة التحكم وإدارة الشبكة", startIcon = AppIcons.BarChart)
 
         // Content Area
         Column(
