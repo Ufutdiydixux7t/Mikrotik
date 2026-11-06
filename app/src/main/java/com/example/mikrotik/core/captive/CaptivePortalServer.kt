@@ -145,6 +145,26 @@ class CaptivePortalServer @Inject constructor(
                             val voucher = voucherDao.getVoucherByCode(code)
 
                             if (activated > 0 && voucher != null) {
+                                val previousSession = activeSessionDao.getSessionByMac(client.macAddress)
+                                if (previousSession != null && previousSession.ipAddress != client.ipAddress &&
+                                    !iptablesManager.unblockClientIpAddress(previousSession.ipAddress)
+                                ) {
+                                    Log.w(
+                                        "CaptivePortalServer",
+                                        "Could not clear the expired client's previous IP block (${previousSession.ipAddress})"
+                                    )
+                                }
+                                if (!iptablesManager.unblockClientIpAddress(client.ipAddress)) {
+                                    Log.e(
+                                        "CaptivePortalServer",
+                                        "Could not clear the expired client's IP block (${client.ipAddress})"
+                                    )
+                                    call.respondText(
+                                        getHtmlResultPage("تعذر فتح الاتصال", "تعذر إزالة حظر الاتصال المؤقت. أعد المحاولة أو أعد تشغيل نقطة الاتصال.", false),
+                                        contentType = ContentType.Text.Html
+                                    )
+                                    return@post
+                                }
                                 if (!iptablesManager.unblockMacAddress(client.macAddress)) {
                                     Log.w("CaptivePortalServer", "Could not clear a stale temporary block before voucher login")
                                 }

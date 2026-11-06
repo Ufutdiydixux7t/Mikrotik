@@ -233,6 +233,12 @@ class IptablesManager @Inject constructor(
 
     suspend fun unblockMacAddress(macAddress: String): Boolean = setMacBlock(macAddress, block = false)
 
+    /** Blocks reply traffic to an expired client before the established-connection accept rule. */
+    suspend fun blockClientIpAddress(ipAddress: String): Boolean = setClientIpBlock(ipAddress, block = true)
+
+    /** Removes a temporary expiry block after the client successfully presents a valid voucher. */
+    suspend fun unblockClientIpAddress(ipAddress: String): Boolean = setClientIpBlock(ipAddress, block = false)
+
     suspend fun revokeMacAddress(macAddress: String): Boolean {
         val mac = macAddress.lowercase()
         if (!macPattern.matches(mac)) return false
@@ -251,6 +257,23 @@ class IptablesManager @Inject constructor(
         val v4 = setMacRule("iptables", filterChainV4, mac, "DROP", block)
         val v6 = setMacRule("ip6tables", filterChainV6, mac, "DROP", block)
         return v4 && v6
+    }
+
+    private suspend fun setClientIpBlock(ipAddress: String, block: Boolean): Boolean {
+        val octets = ipAddress.split('.')
+        if (octets.size != 4 || octets.any { it.toIntOrNull()?.let { value -> value in 0..255 } != true }) {
+            return false
+        }
+
+        val rule = "iptables -C MM_CAPTIVE_R -d $ipAddress -j DROP"
+        val exists = rootShellManager.executeCommand(rule).isSuccess
+        if (block && !exists) {
+            return rootShellManager.executeCommand("iptables -I MM_CAPTIVE_R 1 -d $ipAddress -j DROP").isSuccess
+        }
+        if (!block && exists) {
+            return rootShellManager.executeCommand("iptables -D MM_CAPTIVE_R -d $ipAddress -j DROP").isSuccess
+        }
+        return true
     }
 
     private suspend fun ensureMacRule(binary: String, chain: String, mac: String, target: String): Boolean {
