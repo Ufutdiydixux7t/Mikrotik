@@ -90,11 +90,28 @@ class CaptivePortalServer @Inject constructor(
                             call.respondText(getHtmlResultPage("خطأ", "يرجى إدخال كود الكرت بشكل صحيح.", false), contentType = ContentType.Text.Html)
                         } else {
                             val now = System.currentTimeMillis()
-                            val clientIp = extractIpv4(call.request.local.remoteAddress)
+                            val remoteAddress = call.request.local.remoteAddress
+                            val clientIp = extractIpv4(call.request.origin.remoteHost)
+                                ?: extractIpv4(remoteAddress)
                             val client = clientIp?.let { ip ->
-                                clientDiscoveryManager.getConnectedDevices().firstOrNull { it.ipAddress == ip }
+                                val discovered = clientDiscoveryManager.getConnectedDevices()
+                                    .firstOrNull { it.ipAddress == ip }
+                                val mac = discovered?.macAddress
+                                    ?: clientDiscoveryManager.findMacAddressForIp(ip)
+                                mac?.let {
+                                    discovered ?: com.example.mikrotik.domain.model.ConnectedDevice(
+                                        ipAddress = ip,
+                                        macAddress = it,
+                                        connectionState = "CONNECTED",
+                                        interfaceName = "hotspot"
+                                    )
+                                }
                             }
                             if (client == null) {
+                                Log.w(
+                                    "CaptivePortalServer",
+                                    "Could not resolve hotspot client. remoteHost=${call.request.origin.remoteHost}, remoteAddress=$remoteAddress, parsedIp=$clientIp"
+                                )
                                 call.respondText(
                                     getHtmlResultPage("تعذر تحديد الجهاز", "أعد الاتصال بشبكة Hotspot ثم حاول مرة أخرى.", false),
                                     contentType = ContentType.Text.Html
@@ -163,10 +180,10 @@ class CaptivePortalServer @Inject constructor(
     }
 
     private fun extractIpv4(remoteAddress: String): String? {
-        return Regex("(?:^|/)(\\d{1,3}(?:\\.\\d{1,3}){3})(?::\\d+)?$")
-            .find(remoteAddress.trim())
-            ?.groupValues
-            ?.getOrNull(1)
+        val pattern = Regex("(?<![0-9])(\\d{1,3}(?:\\.\\d{1,3}){3})(?![0-9])")
+        return pattern.findAll(remoteAddress)
+            .map { it.groupValues[1] }
+            .firstOrNull { address -> address.split('.').all { it.toIntOrNull()?.let { octet -> octet in 0..255 } == true } }
     }
 
     @Synchronized

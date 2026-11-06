@@ -11,6 +11,38 @@ import javax.inject.Singleton
 class ClientDiscoveryManager @Inject constructor(
     private val rootShellManager: RootShellManager
 ) {
+    private val macRegex = Regex("(?i)^[0-9a-f]{2}(:[0-9a-f]{2}){5}$")
+
+    /** Resolves one client directly from neighbor, ARP, and DHCP lease tables. */
+    suspend fun findMacAddressForIp(ipAddress: String): String? = withContext(Dispatchers.IO) {
+        if (!isValidIpv4(ipAddress)) return@withContext null
+
+        val neighbor = rootShellManager.executeCommand("ip neigh show to $ipAddress")
+        val neighborMac = neighbor.stdout.asSequence()
+            .flatMap { it.split("\\s+".toRegex()).asSequence() }
+            .map { it.lowercase() }
+            .firstOrNull { macRegex.matches(it) && it != "00:00:00:00:00:00" }
+        if (neighborMac != null) return@withContext neighborMac
+
+        val arp = rootShellManager.executeCommand("cat /proc/net/arp")
+        val arpMac = arp.stdout.asSequence().drop(1)
+            .map { it.trim().split("\\s+".toRegex()) }
+            .firstOrNull { it.size >= 4 && it[0] == ipAddress }
+            ?.get(3)?.lowercase()
+            ?.takeIf { macRegex.matches(it) && it != "00:00:00:00:00:00" }
+        if (arpMac != null) return@withContext arpMac
+
+        val leases = rootShellManager.executeCommand("cat /data/misc/dhcp/dnsmasq.leases")
+        leases.stdout.asSequence()
+            .map { it.trim().split("\\s+".toRegex()) }
+            .firstOrNull { it.size >= 3 && it[2] == ipAddress && macRegex.matches(it[1]) }
+            ?.get(1)?.lowercase()
+    }
+
+    private fun isValidIpv4(value: String): Boolean {
+        val parts = value.split('.')
+        return parts.size == 4 && parts.all { part -> part.toIntOrNull()?.let { it in 0..255 } == true }
+    }
 
     /**
      * Discovers all devices connected to the Hotspot using safe read-only commands
