@@ -91,14 +91,15 @@ class CaptivePortalServer @Inject constructor(
                         } else {
                             val now = System.currentTimeMillis()
                             val remoteAddress = call.request.local.remoteAddress
-                            val clientIp = extractIpv4(call.request.local.remoteHost)
+                            val clientIp = extractIpv4(call.request.origin.remoteHost)
                                 ?: extractIpv4(remoteAddress)
                             val client = clientIp?.let { ip ->
-                                val discovered = clientDiscoveryManager.getConnectedDevices()
-                                    .firstOrNull { it.ipAddress == ip }
-                                val mac = discovered?.macAddress
-                                    ?: clientDiscoveryManager.findMacAddressForIp(ip)
-                                mac?.let {
+                                val mac = clientDiscoveryManager.findMacAddressForIp(ip)
+                                val discovered = if (mac == null) {
+                                    clientDiscoveryManager.getConnectedDevices().firstOrNull { it.ipAddress == ip }
+                                } else null
+                                val resolvedMac = mac ?: discovered?.macAddress
+                                resolvedMac?.let {
                                     discovered ?: com.example.mikrotik.domain.model.ConnectedDevice(
                                         ipAddress = ip,
                                         macAddress = it,
@@ -150,16 +151,7 @@ class CaptivePortalServer @Inject constructor(
                                     )
                                     return@post
                                 }
-                                val remainingBytes = (voucher.dataLimitBytes - voucher.bytesUsedSoFar).coerceAtLeast(0L)
-                                val remainingMb = remainingBytes / (1024L * 1024L)
-                                val firstUse = voucher.firstUsedAt ?: now
-                                val remainingMinutes = ((firstUse + voucher.durationMinutes * 60_000L - now) / 60_000L)
-                                    .coerceAtLeast(0L)
-                                val message = "تم قبول البطاقة والسماح لهذا الجهاز. المتبقي: $remainingMb MB و$remainingMinutes دقيقة."
-                                call.respondText(
-                                    getHtmlResultPage("تم قبول البطاقة", message, true),
-                                    contentType = ContentType.Text.Html
-                                )
+                                call.respondRedirect("http://neverssl.com/")
                             } else {
                                 val reason = when {
                                     voucher == null -> "رمز البطاقة غير موجود."

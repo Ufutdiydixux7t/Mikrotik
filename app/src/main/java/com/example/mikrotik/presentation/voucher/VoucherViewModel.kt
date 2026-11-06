@@ -64,16 +64,6 @@ class VoucherViewModel @Inject constructor(
                 }
 
                 sessions.forEach { session ->
-                    activeSessionDao.deactivateSession(session.macAddress)
-                    activeSessionDao.deleteSession(session.macAddress)
-                }
-                val lateSessions = activeSessionDao.getSessionsByVoucherCode(voucher.code)
-                for (session in lateSessions) {
-                    if (!iptablesManager.revokeMacAddress(session.macAddress)) {
-                        _deleteError.value = "تعذر إيقاف اتصال جهاز مرتبط بالبطاقة؛ لم تُحذف البطاقة. تحقق من صلاحية Root وحاول مجدداً."
-                        onComplete(false)
-                        return@launch
-                    }
                     activeSessionDao.deleteSession(session.macAddress)
                 }
                 voucherDao.deleteVoucher(voucher.code)
