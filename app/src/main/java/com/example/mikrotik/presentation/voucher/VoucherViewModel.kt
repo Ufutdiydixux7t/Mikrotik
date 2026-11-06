@@ -2,6 +2,7 @@ package com.example.mikrotik.presentation.voucher
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.mikrotik.core.hotspot.HotspotController
 import com.example.mikrotik.core.network.IptablesManager
 import com.example.mikrotik.data.db.dao.ActiveSessionDao
 import com.example.mikrotik.data.db.dao.VoucherDao
@@ -19,7 +20,8 @@ import javax.inject.Inject
 class VoucherViewModel @Inject constructor(
     private val voucherDao: VoucherDao,
     private val activeSessionDao: ActiveSessionDao,
-    private val iptablesManager: IptablesManager
+    private val iptablesManager: IptablesManager,
+    private val hotspotController: HotspotController
 ) : ViewModel() {
 
     private val _deleteError = MutableStateFlow<String?>(null)
@@ -82,7 +84,22 @@ class VoucherViewModel @Inject constructor(
                         listOfNotNull(voucher.boundMacAddress, latestVoucher?.boundMacAddress)
                     ).distinct()
 
-                for (macAddress in macAddresses) {
+                val sessionMacAddresses = sessions.map { it.macAddress }.toSet()
+                for (session in sessions) {
+                    val ipBlocked = iptablesManager.blockClientIpAddress(session.ipAddress)
+                    val revoked = iptablesManager.revokeMacAddress(session.macAddress)
+                    val macBlocked = iptablesManager.blockMacAddress(session.macAddress)
+                    if (!ipBlocked || !revoked || !macBlocked) {
+                        _deleteError.value = "تعذر قطع اتصال أحد الأجهزة؛ لم تُحذف البطاقة. تحقق من صلاحية Root وحاول مجدداً."
+                        onComplete(false)
+                        return@launch
+                    }
+                    if (session.isActive) {
+                        hotspotController.requestClientReauthentication(session.macAddress)
+                    }
+                }
+
+                for (macAddress in macAddresses.filterNot { it in sessionMacAddresses }) {
                     if (!iptablesManager.revokeMacAddress(macAddress)) {
                         _deleteError.value = "تعذر سحب السماح من أحد الأجهزة؛ لم تُحذف البطاقة. تحقق من صلاحية Root وحاول مجدداً."
                         onComplete(false)

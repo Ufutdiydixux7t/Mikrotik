@@ -45,6 +45,29 @@ class HotspotController @Inject constructor(
         }
     }
 
+    /** Forces only this client to reassociate so Android/iOS immediately rechecks the captive portal. */
+    suspend fun requestClientReauthentication(macAddress: String): Boolean = withContext(Dispatchers.IO) {
+        val mac = macAddress.lowercase()
+        if (!Regex("(?i)^[0-9a-f]{2}(:[0-9a-f]{2}){5}$").matches(mac)) return@withContext false
+
+        val interfaceName = findActiveApInterface() ?: return@withContext false
+        val stationStatus = rootShellManager.executeCommand("hostapd_cli -i $interfaceName all_sta")
+        val stationOutput = stationStatus.stdout.joinToString("\n")
+        if (stationStatus.isSuccess && !stationOutput.contains("FAIL", ignoreCase = true) &&
+            !stationOutput.contains(mac, ignoreCase = true)
+        ) {
+            return@withContext true
+        }
+
+        val result = rootShellManager.executeCommand("hostapd_cli -i $interfaceName deauthenticate $mac")
+        val output = (result.stdout + result.stderr).joinToString(" ")
+        val succeeded = result.isSuccess && !output.contains("FAIL", ignoreCase = true)
+        if (!succeeded) {
+            Log.w("HotspotController", "Could not request client reassociation for $mac on $interfaceName: $output")
+        }
+        succeeded
+    }
+
     /**
      * Attempts to start the Wi-Fi Hotspot via robust root commands tested for Samsung Android 12.
      */

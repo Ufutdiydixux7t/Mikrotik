@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.example.mikrotik.core.hotspot.HotspotController
 import com.example.mikrotik.core.network.IptablesManager
 import com.example.mikrotik.data.db.dao.ActiveSessionDao
 import com.example.mikrotik.data.db.dao.BlockedMacDao
@@ -31,6 +32,7 @@ class BandwidthTrackerService : Service() {
     @Inject lateinit var voucherDao: VoucherDao
     @Inject lateinit var blockedMacDao: BlockedMacDao
     @Inject lateinit var iptablesManager: IptablesManager
+    @Inject lateinit var hotspotController: HotspotController
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var trackingJob: Job? = null
@@ -95,8 +97,7 @@ class BandwidthTrackerService : Service() {
 
             var voucher = voucherDao.getVoucherByCode(session.voucherCode)
             if (voucher == null || voucher.isBlocked) {
-                iptablesManager.revokeMacAddress(mac)
-                activeSessionDao.deactivateSession(mac)
+                disconnectExpiredSession(session, "deleted or blocked voucher")
                 continue
             }
 
@@ -134,24 +135,36 @@ class BandwidthTrackerService : Service() {
             val isQuotaExceeded = voucher.bytesUsedSoFar >= voucher.dataLimitBytes
 
             if (isDurationExpired || isQuotaExceeded) {
-                // Stop reply traffic first, then remove the portal bypass and block new client traffic.
-                val ipBlocked = iptablesManager.blockClientIpAddress(session.ipAddress)
-                val revoked = iptablesManager.revokeMacAddress(mac)
-                val macBlocked = iptablesManager.blockMacAddress(mac)
-                if (!ipBlocked || !revoked || !macBlocked) {
-                    Log.e(
-                        "BandwidthTracker",
-                        "Could not fully revoke expired voucher access for $mac " +
-                            "(ipBlocked=$ipBlocked, revoked=$revoked, macBlocked=$macBlocked)"
-                    )
-                }
-                activeSessionDao.deactivateSession(mac)
-                Log.i(
-                    "BandwidthTracker",
-                    "Expired voucher disconnected (${if (isQuotaExceeded) "quota" else "duration"}) for $mac"
+                disconnectExpiredSession(
+                    session,
+                    if (isQuotaExceeded) "quota" else "duration"
                 )
             }
         }
+    }
+
+    private suspend fun disconnectExpiredSession(
+        session: com.example.mikrotik.data.db.entity.ActiveSessionEntity,
+        reason: String
+    ) {
+        val mac = session.macAddress
+        // Stop replies to existing flows first; then revoke access and drop new client traffic.
+        val ipBlocked = iptablesManager.blockClientIpAddress(session.ipAddress)
+        val revoked = iptablesManager.revokeMacAddress(mac)
+        val macBlocked = iptablesManager.blockMacAddress(mac)
+        if (!ipBlocked || !revoked || !macBlocked) {
+            Log.e(
+                "BandwidthTracker",
+                "Could not fully revoke expired voucher access for $mac " +
+                    "(ipBlocked=$ipBlocked, revoked=$revoked, macBlocked=$macBlocked)"
+            )
+        }
+
+        activeSessionDao.deactivateSession(mac)
+        if (!hotspotController.requestClientReauthentication(mac)) {
+            Log.w("BandwidthTracker", "Client will rely on the next captive probe to reopen login for $mac")
+        }
+        Log.i("BandwidthTracker", "Expired voucher disconnected ($reason) for $mac")
     }
 
     override fun onDestroy() {
