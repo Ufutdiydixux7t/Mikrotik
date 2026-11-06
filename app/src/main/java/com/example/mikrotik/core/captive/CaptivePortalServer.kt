@@ -170,7 +170,14 @@ class CaptivePortalServer @Inject constructor(
                                     )
                                     return@post
                                 }
-                                call.respondRedirect("http://connectivitycheck.gstatic.com/generate_204")
+                                call.respondText(
+                                    getHtmlResultPage(
+                                        "تم تسجيل الدخول بنجاح",
+                                        "تم تفعيل البطاقة والاتصال بالإنترنت بنجاح.",
+                                        true
+                                    ),
+                                    contentType = ContentType.Text.Html
+                                )
                             } else {
                                 val reason = when {
                                     voucher == null -> "رمز البطاقة غير موجود."
@@ -502,10 +509,17 @@ class CaptivePortalServer @Inject constructor(
 
     private fun getHtmlResultPage(title: String, message: String, isSuccess: Boolean): String {
         val color = if (isSuccess) "#00796B" else "#C62828"
-        val continueUrl = if (isSuccess) "http://connectivitycheck.gstatic.com/generate_204" else "/"
-        val continueLabel = if (isSuccess) "فتح الإنترنت" else "العودة"
-        val autoRedirect = if (isSuccess) {
-            "<script>window.setTimeout(function(){window.location.replace('$continueUrl');},1200);</script>"
+        val continueUrl = if (isSuccess) "http://neverssl.com/" else "/"
+        val continueLabel = if (isSuccess) "انتقال إلى الرئيسية" else "العودة"
+        val successIcon = if (isSuccess) {
+            """
+            <div class="success-icon" role="img" aria-label="تم بنجاح">
+                <svg viewBox="0 0 64 64" aria-hidden="true">
+                    <circle cx="32" cy="32" r="29" fill="#E4F4EF" stroke="#138D86" stroke-width="3"/>
+                    <path d="M18 33l9 9 19-21" fill="none" stroke="#138D86" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            """.trimIndent()
         } else {
             ""
         }
@@ -548,6 +562,8 @@ class CaptivePortalServer @Inject constructor(
                     color: $color;
                     margin-bottom: 16px;
                 }
+                .success-icon { width: 68px; height: 68px; margin: 0 auto 18px; }
+                .success-icon svg { width: 100%; height: 100%; }
                 .message {
                     font-size: 16px;
                     color: #333333;
@@ -556,19 +572,22 @@ class CaptivePortalServer @Inject constructor(
                 }
                 .btn-back {
                     display: inline-block;
+                    min-width: 220px;
                     padding: 12px 24px;
-                    background-color: #00796B;
+                    background-color: #138D86;
                     color: white;
                     text-decoration: none;
                     border-radius: 12px;
                     font-size: 16px;
                     font-weight: bold;
+                    box-sizing: border-box;
                 }
             </style>
         </head>
         <body>
             <div class="container">
                 <div class="card">
+                    $successIcon
                     <div class="title">$title</div>
                     <div class="message">$message</div>
                     <a href="$continueUrl" class="btn-back">$continueLabel</a>
@@ -577,7 +596,6 @@ class CaptivePortalServer @Inject constructor(
             <div style="margin-bottom: 20px; font-size: 12px; color: #888888;">
                 Powered by Hotspot
             </div>
-            $autoRedirect
         </body>
         </html>
         """.trimIndent()
