@@ -71,6 +71,42 @@ class IptablesManager @Inject constructor(
         return v4 && v6 && nat
     }
 
+    /** Reads forwarded upload/download byte counters for one authenticated hotspot client. */
+    suspend fun getDeviceUsageBytes(macAddress: String, ipAddress: String): Long? {
+        val mac = macAddress.lowercase()
+        val octets = ipAddress.split('.')
+        if (!macPattern.matches(mac) || octets.size != 4 ||
+            octets.any { it.toIntOrNull()?.let { value -> value in 0..255 } != true }
+        ) return null
+
+        val replyChain = rootShellManager.executeCommand("iptables -S MM_CAPTIVE_R")
+        if (!replyChain.isSuccess) return null
+
+        // Put a per-device download counter before the existing subnet-wide accept rule.
+        val downloadRule = "iptables -C MM_CAPTIVE_R -d $ipAddress -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT"
+        if (!rootShellManager.executeCommand(downloadRule).isSuccess &&
+            !rootShellManager.executeCommand("iptables -I MM_CAPTIVE_R 1 -d $ipAddress -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT").isSuccess
+        ) return null
+
+        val uploadCounters = rootShellManager.executeCommand("iptables -L $filterChainV4 -v -x -n")
+        val downloadCounters = rootShellManager.executeCommand("iptables -L MM_CAPTIVE_R -v -x -n")
+        if (!uploadCounters.isSuccess || !downloadCounters.isSuccess) return null
+
+        val uploaded = sumAcceptRuleBytes(uploadCounters.stdout) { tokens ->
+            tokens.any { it.equals(mac, ignoreCase = true) }
+        }
+        val downloaded = sumAcceptRuleBytes(downloadCounters.stdout) { tokens ->
+            tokens.getOrNull(8) == ipAddress
+        }
+        return uploaded + downloaded
+    }
+
+    private fun sumAcceptRuleBytes(lines: List<String>, matchesDevice: (List<String>) -> Boolean): Long =
+        lines.asSequence()
+            .map { it.trim().split("\\s+".toRegex()) }
+            .filter { tokens -> tokens.size >= 9 && tokens[2].equals("ACCEPT", ignoreCase = true) && matchesDevice(tokens) }
+            .sumOf { tokens -> tokens[1].toLongOrNull() ?: 0L }
+
     /** Enables IPv4 forwarding and NAT only for clients in the detected hotspot subnet. */
     suspend fun installClientRouting(interfaceName: String): Boolean {
         if (!interfacePattern.matches(interfaceName)) return false
