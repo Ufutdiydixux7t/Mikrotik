@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.mikrotik.domain.model.ConnectedDevice
 import com.example.mikrotik.domain.model.HotspotState
+import com.example.mikrotik.presentation.ui.components.AppTopBar
 import com.example.mikrotik.presentation.ui.theme.AppIcons
 
 private val DeepGreenHeader = Color(0xFF0F3822) // Rich dark green header
@@ -64,50 +65,13 @@ fun HomeScreen(
 
     Scaffold(
         topBar = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(DeepGreenHeader)
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = AppIcons.Home,
-                        contentDescription = "Home",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "الرئيسية",
-                            color = Color.White,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "AL-MADDI NET",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium,
-                            letterSpacing = 1.sp
-                        )
-                    }
-
-                    IconButton(onClick = { viewModel.refreshAll() }) {
-                        Icon(
-                            imageVector = AppIcons.SettingsGear,
-                            contentDescription = "Settings",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-            }
+            AppTopBar(
+                title = "الرئيسية",
+                subtitle = "AL-MADDI NET",
+                startIcon = AppIcons.Home,
+                endIcon = AppIcons.SettingsGear,
+                onEndClick = { viewModel.refreshAll() }
+            )
         },
         containerColor = PageBackground
     ) { paddingValues ->

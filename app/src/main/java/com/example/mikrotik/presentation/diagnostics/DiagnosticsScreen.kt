@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import com.example.mikrotik.core.root.RootStatus
 import com.example.mikrotik.core.root.SystemDiagnosticReport
 import com.example.mikrotik.presentation.login.LoginScreen
+import com.example.mikrotik.presentation.ui.components.AppTopBar
 import com.example.mikrotik.presentation.ui.theme.AppIcons
 
 private val DeepGreenHeader = Color(0xFF0F3822)
@@ -51,28 +52,17 @@ fun DiagnosticsScreen(
             .fillMaxSize()
             .background(PageBackground)
     ) {
-        // Top Header Bar
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(DeepGreenHeader)
-                .padding(vertical = 20.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = when (currentDestination) {
-                    SettingsDestination.MainSettings -> "الإعدادات"
-                    SettingsDestination.SystemInfo -> "معلومات النظام"
-                    SettingsDestination.LoginPage -> "واجهة تسجيل الدخول"
-                    SettingsDestination.AboutUs -> "نظرة عنا"
-                    SettingsDestination.Privacy -> "البيانات والخصوصية"
-                    SettingsDestination.Language -> "اللغة"
-                },
-                color = Color.White,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        AppTopBar(
+            title = when (currentDestination) {
+                SettingsDestination.MainSettings -> "الإعدادات"
+                SettingsDestination.SystemInfo -> "معلومات النظام"
+                SettingsDestination.LoginPage -> "واجهة تسجيل الدخول"
+                SettingsDestination.AboutUs -> "نظرة عنا"
+                SettingsDestination.Privacy -> "البيانات والخصوصية"
+                SettingsDestination.Language -> "اللغة"
+            },
+            startIcon = AppIcons.SettingsGear
+        )
 
         // Content Area
         Box(
@@ -101,12 +91,9 @@ fun DiagnosticsScreen(
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
                     ) {
-                        OutlinedButton(
-                            onClick = { currentDestination = SettingsDestination.MainSettings },
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = DeepGreenHeader)
-                        ) {
-                            Text("‹ رجوع إلى الإعدادات")
-                        }
+                        BackToSettingsButton(
+                            onClick = { currentDestination = SettingsDestination.MainSettings }
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
                         Box(modifier = Modifier.fillMaxWidth().height(650.dp)) {
                             LoginScreen()
@@ -231,6 +218,27 @@ fun MainSettingsList(
 }
 
 @Composable
+private fun BackToSettingsButton(onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = DeepGreenHeader)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text("رجوع إلى الإعدادات")
+            Icon(
+                imageVector = AppIcons.ChevronRight,
+                contentDescription = null,
+                tint = DeepGreenHeader,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}
+
+@Composable
 fun SettingsItemRow(
     icon: ImageVector,
     title: String,
@@ -273,11 +281,11 @@ fun SettingsItemRow(
             }
         }
 
-        Text(
-            text = "‹",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Gray
+        Icon(
+            imageVector = AppIcons.ChevronLeft,
+            contentDescription = null,
+            tint = Color.Gray,
+            modifier = Modifier.size(20.dp)
         )
     }
 }
@@ -294,12 +302,7 @@ fun SystemInfoDetailScreen(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        OutlinedButton(
-            onClick = onBack,
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = DeepGreenHeader)
-        ) {
-            Text("‹ رجوع إلى الإعدادات")
-        }
+        BackToSettingsButton(onClick = onBack)
 
         Spacer(modifier = Modifier.height(4.dp))
 
@@ -333,12 +336,7 @@ fun BlankDetailScreen(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        OutlinedButton(
-            onClick = onBack,
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = DeepGreenHeader)
-        ) {
-            Text("‹ رجوع إلى الإعدادات")
-        }
+        BackToSettingsButton(onClick = onBack)
 
         Card(
             modifier = Modifier

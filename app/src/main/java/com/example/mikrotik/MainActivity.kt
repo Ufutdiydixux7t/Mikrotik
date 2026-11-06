@@ -5,6 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import com.example.mikrotik.presentation.dashboard.DashboardViewModel
 import com.example.mikrotik.presentation.diagnostics.DiagnosticsViewModel
 import com.example.mikrotik.presentation.home.HomeViewModel
@@ -25,13 +28,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MikrotikTheme {
-                MainScreen(
-                    homeViewModel = homeViewModel,
-                    diagnosticsViewModel = diagnosticsViewModel,
-                    voucherViewModel = voucherViewModel,
-                    dashboardViewModel = dashboardViewModel
-                )
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                MikrotikTheme {
+                    MainScreen(
+                        homeViewModel = homeViewModel,
+                        diagnosticsViewModel = diagnosticsViewModel,
+                        voucherViewModel = voucherViewModel,
+                        dashboardViewModel = dashboardViewModel
+                    )
+                }
             }
         }
     }

@@ -404,4 +404,154 @@ object AppIcons {
                 lineTo(12f, 22f)
             }
         }.build()
+
+    val Clock: ImageVector
+        get() = ImageVector.Builder(
+            name = "Clock",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color(0xFF00796B)),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round
+            ) {
+                moveTo(12f, 22f)
+                arcTo(10f, 10f, 0f, true, false, 12f, 2f)
+                arcTo(10f, 10f, 0f, true, false, 12f, 22f)
+                close()
+                moveTo(12f, 6f)
+                lineTo(12f, 12f)
+                lineTo(16f, 14f)
+            }
+        }.build()
+
+    val Inventory: ImageVector
+        get() = ImageVector.Builder(
+            name = "Inventory",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color(0xFF00796B)),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round
+            ) {
+                moveTo(4f, 4f)
+                lineTo(20f, 4f)
+                lineTo(22f, 8f)
+                lineTo(22f, 20f)
+                lineTo(2f, 20f)
+                lineTo(2f, 8f)
+                close()
+                moveTo(2f, 8f)
+                lineTo(22f, 8f)
+                moveTo(9f, 12f)
+                lineTo(15f, 12f)
+            }
+        }.build()
+
+    val ContentCopy: ImageVector
+        get() = ImageVector.Builder(
+            name = "ContentCopy",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color(0xFF00796B)),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round
+            ) {
+                moveTo(8f, 8f)
+                lineTo(20f, 8f)
+                lineTo(20f, 21f)
+                lineTo(8f, 21f)
+                close()
+                moveTo(16f, 8f)
+                lineTo(16f, 4f)
+                lineTo(4f, 4f)
+                lineTo(4f, 17f)
+                lineTo(8f, 17f)
+            }
+        }.build()
+
+    val Delete: ImageVector
+        get() = ImageVector.Builder(
+            name = "Delete",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color(0xFFC62828)),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round
+            ) {
+                moveTo(4f, 7f)
+                lineTo(20f, 7f)
+                moveTo(10f, 11f)
+                lineTo(10f, 17f)
+                moveTo(14f, 11f)
+                lineTo(14f, 17f)
+                moveTo(5f, 7f)
+                lineTo(6f, 21f)
+                lineTo(18f, 21f)
+                lineTo(19f, 7f)
+                moveTo(9f, 7f)
+                lineTo(9f, 4f)
+                lineTo(15f, 4f)
+                lineTo(15f, 7f)
+            }
+        }.build()
+
+    val ChevronLeft: ImageVector
+        get() = ImageVector.Builder(
+            name = "ChevronLeft",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color(0xFF757575)),
+                strokeLineWidth = 2.2f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round
+            ) {
+                moveTo(15f, 18f)
+                lineTo(9f, 12f)
+                lineTo(15f, 6f)
+            }
+        }.build()
+
+    val ChevronRight: ImageVector
+        get() = ImageVector.Builder(
+            name = "ChevronRight",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color(0xFF00796B)),
+                strokeLineWidth = 2.2f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round
+            ) {
+                moveTo(9f, 18f)
+                lineTo(15f, 12f)
+                lineTo(9f, 6f)
+            }
+        }.build()
 }
