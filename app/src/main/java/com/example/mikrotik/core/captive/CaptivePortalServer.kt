@@ -59,30 +59,30 @@ class CaptivePortalServer @Inject constructor(
 
                     // Main login page
                     get("/") {
-                        call.respondText(getHtmlLoginPage(), contentType = ContentType.Text.Html)
+                        call.respondCaptiveLoginPage()
                     }
 
                     // --- Captive Portal OS Detection Probes ---
                     get("/generate_204") {
-                        call.respondRedirect(getCaptivePortalUrl())
+                        call.respondCaptiveLoginPage()
                     }
                     get("/gen_204") {
-                        call.respondRedirect(getCaptivePortalUrl())
+                        call.respondCaptiveLoginPage()
                     }
                     get("/hotspot-detect.html") {
-                        call.respondText(getHtmlLoginPage(), contentType = ContentType.Text.Html)
+                        call.respondCaptiveLoginPage()
                     }
                     get("/library/test/success.html") {
-                        call.respondText(getHtmlLoginPage(), contentType = ContentType.Text.Html)
+                        call.respondCaptiveLoginPage()
                     }
                     get("/ncsi.txt") {
-                        call.respondRedirect(getCaptivePortalUrl())
+                        call.respondCaptiveLoginPage()
                     }
                     get("/connecttest.txt") {
-                        call.respondRedirect(getCaptivePortalUrl())
+                        call.respondCaptiveLoginPage()
                     }
                     get("/redirect") {
-                        call.respondRedirect(getCaptivePortalUrl())
+                        call.respondCaptiveLoginPage()
                     }
 
                     // Login submission
@@ -209,7 +209,11 @@ class CaptivePortalServer @Inject constructor(
         return getLocalAccessUrl()
     }
 
-    private fun getCaptivePortalUrl(): String = "http://${getActiveHotspotIpAddress()}:$port/"
+    private suspend fun ApplicationCall.respondCaptiveLoginPage() {
+        response.headers.append(HttpHeaders.CacheControl, "no-store, no-cache, must-revalidate")
+        response.headers.append(HttpHeaders.Pragma, "no-cache")
+        respondText(getHtmlLoginPage(), contentType = ContentType.Text.Html)
+    }
 
     private fun extractIpv4(remoteAddress: String): String? {
         val pattern = Regex("(?<![0-9])(\\d{1,3}(?:\\.\\d{1,3}){3})(?![0-9])")
