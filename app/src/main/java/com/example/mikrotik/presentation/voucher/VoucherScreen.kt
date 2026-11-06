@@ -32,17 +32,17 @@ import androidx.compose.ui.platform.LocalContext
 import com.example.mikrotik.data.db.entity.VoucherEntity
 import com.example.mikrotik.presentation.ui.components.AppTopBar
 import com.example.mikrotik.presentation.ui.theme.AppIcons
+import com.example.mikrotik.ui.theme.AppPalette
 import kotlinx.coroutines.delay
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.text.SimpleDateFormat
 import java.util.*
 
-private val DeepGreenHeader = Color(0xFF0F3822)
-private val RichGreenButton = Color(0xFF00796B)
-private val PageBackground = Color(0xFFE6F0EC)
-private val SeamlessCardBg = Color(0xFFFFFFFF)
-private val WatermarkLineColor = Color(0xFFC5E0D6)
+private val DeepGreenHeader = AppPalette.TextNavy
+private val RichGreenButton = AppPalette.Teal
+private val SeamlessCardBg = AppPalette.Card
+private val WatermarkLineColor = AppPalette.Border
 
 enum class VoucherFilterTab(val title: String) {
     UNUSED("غير مستخدمة"),
@@ -91,9 +91,12 @@ fun VoucherScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(PageBackground)
     ) {
-        AppTopBar(title = "إنشاء بطاقة", startIcon = AppIcons.CreditCard)
+        AppTopBar(
+            title = "إنشاء بطاقة",
+            subtitle = "AL RABDI NET",
+            startIcon = AppIcons.CreditCard
+        )
 
         // Scrollable Content
         Column(

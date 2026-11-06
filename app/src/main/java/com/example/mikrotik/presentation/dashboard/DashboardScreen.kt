@@ -22,12 +22,12 @@ import com.example.mikrotik.data.db.entity.ActiveSessionEntity
 import com.example.mikrotik.data.db.entity.BlockedMacEntity
 import com.example.mikrotik.presentation.ui.components.AppTopBar
 import com.example.mikrotik.presentation.ui.theme.AppIcons
+import com.example.mikrotik.ui.theme.AppPalette
 
-private val DeepGreenHeader = Color(0xFF0F3822)
-private val RichGreenButton = Color(0xFF00796B)
-private val PageBackground = Color(0xFFE6F0EC)
-private val SeamlessCardBg = Color(0xFFFFFFFF)
-private val WatermarkLineColor = Color(0xFFC5E0D6)
+private val DeepGreenHeader = AppPalette.TextNavy
+private val RichGreenButton = AppPalette.Teal
+private val SeamlessCardBg = AppPalette.Card
+private val WatermarkLineColor = AppPalette.Border
 
 @Composable
 fun DashboardScreen(
@@ -40,9 +40,12 @@ fun DashboardScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(PageBackground)
     ) {
-        AppTopBar(title = "لوحة التحكم وإدارة الشبكة", startIcon = AppIcons.BarChart)
+        AppTopBar(
+            title = "لوحة التحكم وإدارة الشبكة",
+            subtitle = "AL RABDI NET",
+            startIcon = AppIcons.BarChart
+        )
 
         // Content Area
         Column(
@@ -299,7 +302,7 @@ fun ActiveSessionCard(
                     usageFraction >= 0.7f -> Color(0xFFF9A825)
                     else -> RichGreenButton
                 },
-                trackColor = Color(0xFFE6F0EC)
+                trackColor = AppPalette.Mint
             )
             HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
             Spacer(modifier = Modifier.height(8.dp))

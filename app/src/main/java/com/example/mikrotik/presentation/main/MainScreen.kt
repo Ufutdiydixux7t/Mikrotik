@@ -20,18 +20,19 @@ import com.example.mikrotik.presentation.diagnostics.DiagnosticsScreen
 import com.example.mikrotik.presentation.diagnostics.DiagnosticsViewModel
 import com.example.mikrotik.presentation.home.HomeScreen
 import com.example.mikrotik.presentation.home.HomeViewModel
+import com.example.mikrotik.presentation.ui.components.AppBackground
 import com.example.mikrotik.presentation.ui.components.AppTopBar
 import com.example.mikrotik.presentation.ui.theme.AppIcons
 import com.example.mikrotik.presentation.voucher.VoucherScreen
 import com.example.mikrotik.presentation.voucher.VoucherViewModel
+import com.example.mikrotik.ui.theme.AppPalette
 
-private val DeepGreenHeader = Color(0xFF0F3822)
-private val RichGreenButton = Color(0xFF00796B)
-private val PageBackground = Color(0xFFE6F0EC)
-private val SeamlessCardBg = Color(0xFFD8EBE3)
-private val WatermarkLineColor = Color(0xFFC5E0D6)
-private val InactiveColor = Color(0xFF757575)
-private val BottomBarBg = Color(0xFFFFFFFF)
+private val DeepGreenHeader = AppPalette.TextNavy
+private val RichGreenButton = AppPalette.Teal
+private val SeamlessCardBg = AppPalette.Card
+private val WatermarkLineColor = AppPalette.Border
+private val InactiveColor = AppPalette.Muted
+private val BottomBarBg = AppPalette.Card
 
 enum class BottomTab(val title: String, val icon: ImageVector) {
     HOME("الرئيسية", AppIcons.Home),
@@ -49,90 +50,92 @@ fun MainScreen(
 ) {
     var currentTab by remember { mutableStateOf(BottomTab.HOME) }
 
-    Scaffold(
-        containerColor = PageBackground,
-        bottomBar = {
-            // Floating Rounded Bottom Navigation Bar with margins
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(PageBackground)
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shadowElevation = 8.dp,
-                    shape = RoundedCornerShape(32.dp),
-                    color = BottomBarBg
+    AppBackground {
+        Scaffold(
+            containerColor = Color.Transparent,
+            bottomBar = {
+                // Floating Rounded Bottom Navigation Bar with margins
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceAround,
-                        verticalAlignment = Alignment.CenterVertically
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shadowElevation = 8.dp,
+                        shape = RoundedCornerShape(32.dp),
+                        color = BottomBarBg
                     ) {
-                        BottomTab.entries.forEach { tab ->
-                            val isSelected = currentTab == tab
-                            val contentColor = if (isSelected) RichGreenButton else InactiveColor
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceAround,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            BottomTab.entries.forEach { tab ->
+                                val isSelected = currentTab == tab
+                                val contentColor = if (isSelected) RichGreenButton else InactiveColor
 
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(vertical = 4.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                IconButton(onClick = { currentTab = tab }) {
-                                    Icon(
-                                        imageVector = tab.icon,
-                                        contentDescription = tab.title,
-                                        tint = contentColor,
-                                        modifier = Modifier.size(24.dp)
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(vertical = 4.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    IconButton(onClick = { currentTab = tab }) {
+                                        Icon(
+                                            imageVector = tab.icon,
+                                            contentDescription = tab.title,
+                                            tint = contentColor,
+                                            modifier = Modifier.size(27.dp)
+                                        )
+                                    }
+                                    Text(
+                                        text = tab.title,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = contentColor
                                     )
-                                }
-                                Text(
-                                    text = tab.title,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = contentColor
-                                )
-                                if (isSelected) {
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .width(20.dp)
-                                            .height(3.dp)
-                                            .background(RichGreenButton, shape = RoundedCornerShape(2.dp))
-                                    )
+                                    if (isSelected) {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .width(20.dp)
+                                                .height(3.dp)
+                                                .background(RichGreenButton, shape = RoundedCornerShape(2.dp))
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            when (currentTab) {
-                BottomTab.HOME -> {
-                    HomeScreen(
-                        viewModel = homeViewModel,
-                        onOpenDiagnostics = { currentTab = BottomTab.SETTINGS }
-                    )
-                }
-                BottomTab.CREATE_VOUCHER -> {
-                    VoucherScreen(viewModel = voucherViewModel)
-                }
-                BottomTab.DASHBOARD -> {
-                    DashboardScreen(viewModel = dashboardViewModel)
-                }
-                BottomTab.SETTINGS -> {
-                    DiagnosticsScreen(viewModel = diagnosticsViewModel)
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                when (currentTab) {
+                    BottomTab.HOME -> {
+                        HomeScreen(
+                            viewModel = homeViewModel,
+                            onOpenDiagnostics = { currentTab = BottomTab.SETTINGS }
+                        )
+                    }
+                    BottomTab.CREATE_VOUCHER -> {
+                        VoucherScreen(viewModel = voucherViewModel)
+                    }
+                    BottomTab.DASHBOARD -> {
+                        DashboardScreen(viewModel = dashboardViewModel)
+                    }
+                    BottomTab.SETTINGS -> {
+                        DiagnosticsScreen(viewModel = diagnosticsViewModel)
+                    }
                 }
             }
         }
@@ -144,9 +147,8 @@ fun PlaceholderTabScreen(title: String, description: String) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(PageBackground)
     ) {
-        AppTopBar(title = title, startIcon = AppIcons.Info)
+        AppTopBar(title = title, subtitle = "AL RABDI NET", startIcon = AppIcons.Info)
 
         // Content Area with Seamless Card
         Column(

@@ -24,12 +24,13 @@ import com.example.mikrotik.core.root.RootStatus
 import com.example.mikrotik.core.root.SystemDiagnosticReport
 import com.example.mikrotik.presentation.ui.components.AppTopBar
 import com.example.mikrotik.presentation.ui.theme.AppIcons
+import com.example.mikrotik.ui.theme.AppPalette
 
-private val DeepGreenHeader = Color(0xFF0F3822)
-private val RichGreenButton = Color(0xFF00796B)
-private val PageBackground = Color(0xFFE6F0EC)
-private val SeamlessCardBg = Color(0xFFFFFFFF)
-private val WatermarkLineColor = Color(0xFFE0E0E0)
+private val DeepGreenHeader = AppPalette.TextNavy
+private val RichGreenButton = AppPalette.Teal
+private val PageBackground = AppPalette.Background
+private val SeamlessCardBg = AppPalette.Card
+private val WatermarkLineColor = AppPalette.Border
 
 sealed class SettingsDestination {
     object MainSettings : SettingsDestination()
@@ -51,7 +52,6 @@ fun DiagnosticsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(PageBackground)
     ) {
         AppTopBar(
             title = when (currentDestination) {
@@ -62,6 +62,7 @@ fun DiagnosticsScreen(
                 SettingsDestination.Privacy -> "البيانات والخصوصية"
                 SettingsDestination.Language -> "اللغة"
             },
+            subtitle = "AL RABDI NET",
             startIcon = AppIcons.SettingsGear
         )
 

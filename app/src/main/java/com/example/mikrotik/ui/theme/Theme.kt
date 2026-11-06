@@ -2,7 +2,6 @@ package com.example.mikrotik.ui.theme
 
 import android.app.Activity
 import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -12,15 +11,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = AppPalette.Teal,
+    secondary = AppPalette.Navy,
+    tertiary = AppPalette.MintStrong
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+    primary = AppPalette.Teal,
+    secondary = AppPalette.Navy,
+    tertiary = AppPalette.MintStrong,
+    background = AppPalette.Background,
+    surface = AppPalette.Card,
+    onPrimary = AppPalette.Card,
+    onSecondary = AppPalette.Card,
+    onBackground = AppPalette.TextNavy,
+    onSurface = AppPalette.TextNavy
 
     /* Other default colors to override
     background = Color(0xFFFFFBFE),
@@ -35,9 +40,8 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun MikrotikTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    darkTheme: Boolean = false,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {

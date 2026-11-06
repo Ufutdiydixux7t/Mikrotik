@@ -554,4 +554,55 @@ object AppIcons {
                 lineTo(9f, 6f)
             }
         }.build()
+
+    val Menu: ImageVector
+        get() = ImageVector.Builder(
+            name = "Menu",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color.White),
+                strokeLineWidth = 2.2f,
+                strokeLineCap = StrokeCap.Round
+            ) {
+                moveTo(4f, 6f)
+                lineTo(20f, 6f)
+                moveTo(4f, 12f)
+                lineTo(20f, 12f)
+                moveTo(4f, 18f)
+                lineTo(20f, 18f)
+            }
+        }.build()
+
+    val Smartphone: ImageVector
+        get() = ImageVector.Builder(
+            name = "Smartphone",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color(0xFF173451)),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round
+            ) {
+                moveTo(7f, 2f)
+                lineTo(17f, 2f)
+                arcTo(2f, 2f, 0f, false, true, 19f, 4f)
+                lineTo(19f, 20f)
+                arcTo(2f, 2f, 0f, false, true, 17f, 22f)
+                lineTo(7f, 22f)
+                arcTo(2f, 2f, 0f, false, true, 5f, 20f)
+                lineTo(5f, 4f)
+                arcTo(2f, 2f, 0f, false, true, 7f, 2f)
+                close()
+                moveTo(11f, 18f)
+                lineTo(13f, 18f)
+            }
+        }.build()
 }

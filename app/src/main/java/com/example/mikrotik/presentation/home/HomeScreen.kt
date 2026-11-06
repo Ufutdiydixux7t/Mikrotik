@@ -1,6 +1,5 @@
 package com.example.mikrotik.presentation.home
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,15 +23,16 @@ import androidx.compose.ui.unit.sp
 import com.example.mikrotik.domain.model.ConnectedDevice
 import com.example.mikrotik.domain.model.HotspotState
 import com.example.mikrotik.presentation.ui.components.AppTopBar
+import com.example.mikrotik.presentation.ui.components.AppWaveDecoration
 import com.example.mikrotik.presentation.ui.theme.AppIcons
+import com.example.mikrotik.ui.theme.AppPalette
 
-private val DeepGreenHeader = Color(0xFF0F3822) // Rich dark green header
-private val RichGreenButton = Color(0xFF00796B) // Rich emerald green buttons & icons
-private val PageBackground = Color(0xFFE6F0EC)   // Distinct sage green background
-private val SeamlessCardBg = Color(0xFFD8EBE3)   // Seamless flat card background (no stark white)
-private val WatermarkLineColor = Color(0xFFC5E0D6) // Subtle watermark wave lines color
-private val PillGreenBg = Color(0xFFC8E6C9)      // Soft green pill background
-private val PillGreenDot = Color(0xFF2E7D32)     // Rich green dot
+private val DeepGreenHeader = AppPalette.TextNavy
+private val RichGreenButton = AppPalette.Teal
+private val SeamlessCardBg = AppPalette.Card
+private val WatermarkLineColor = AppPalette.Border
+private val PillGreenBg = AppPalette.MintStrong
+private val PillGreenDot = AppPalette.Positive
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,7 +47,7 @@ fun HomeScreen(
     val totalUsage by viewModel.totalUsageFormatted.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
 
-    var isDevicesExpanded by remember { mutableStateOf(false) }
+    var isDevicesExpanded by remember { mutableStateOf(true) }
 
     // Error Dialog if root command fails
     if (errorMessage != null) {
@@ -67,13 +67,13 @@ fun HomeScreen(
         topBar = {
             AppTopBar(
                 title = "الرئيسية",
-                subtitle = "AL-MADDI NET",
+                subtitle = "AL RABDI NET",
                 startIcon = AppIcons.Home,
-                endIcon = AppIcons.SettingsGear,
-                onEndClick = { viewModel.refreshAll() }
+                endIcon = AppIcons.Menu,
+                onEndClick = onOpenDiagnostics
             )
         },
-        containerColor = PageBackground
+        containerColor = Color.Transparent
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -92,17 +92,17 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 StatusCard(
-                    title = "WiFi",
-                    isActive = isWifiActive,
-                    icon = AppIcons.WifiSignal,
-                    onClick = { viewModel.toggleWifi() },
-                    modifier = Modifier.weight(1f)
-                )
-                StatusCard(
                     title = "البيانات",
                     isActive = isDataActive,
                     icon = AppIcons.MobileDataArrows,
                     onClick = { viewModel.toggleMobileData() },
+                    modifier = Modifier.weight(1f)
+                )
+                StatusCard(
+                    title = "WiFi",
+                    isActive = isWifiActive,
+                    icon = AppIcons.WifiSignal,
+                    onClick = { viewModel.toggleWifi() },
                     modifier = Modifier.weight(1f)
                 )
                 StatusCard(
@@ -133,19 +133,15 @@ fun TotalUsageCard(totalUsage: String) {
             .border(1.dp, WatermarkLineColor, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
-            // Decorative Watermark Wave Lines inside card
-            Column(
+            AppWaveDecoration(
                 modifier = Modifier
+                    .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                HorizontalDivider(color = WatermarkLineColor, thickness = 1.dp)
-                HorizontalDivider(color = WatermarkLineColor.copy(alpha = 0.5f), thickness = 0.5f.dp)
-            }
+                    .height(70.dp)
+            )
 
             Column(
                 modifier = Modifier
@@ -161,7 +157,7 @@ fun TotalUsageCard(totalUsage: String) {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "استهلاك الإنترنت على الجهاز",
+                    text = "استهلاك الإنترنت الكلي",
                     color = DeepGreenHeader,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
@@ -199,7 +195,7 @@ fun StatusCard(
             .border(1.dp, WatermarkLineColor, RoundedCornerShape(14.dp)),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier
@@ -232,17 +228,17 @@ fun StatusCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                    Text(
+                        text = if (isActive) "مفعل" else "متوقف",
+                        color = if (isActive) PillGreenDot else Color.Gray,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                     Box(
                         modifier = Modifier
-                            .size(6.dp)
+                            .size(10.dp)
                             .clip(CircleShape)
                             .background(if (isActive) PillGreenDot else Color.Gray)
-                    )
-                    Text(
-                        text = if (isActive) "مفعل" else "معطل",
-                        color = if (isActive) PillGreenDot else Color.Gray,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
                     )
                 }
             }
@@ -257,101 +253,65 @@ fun ConnectedDevicesSection(
     onToggleExpand: () -> Unit,
     hotspotState: HotspotState
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 8.dp),
+                .clickable { onToggleExpand() }
+                .padding(bottom = 2.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = AppIcons.ConnectedDevices,
-                    contentDescription = "Devices",
-                    tint = DeepGreenHeader,
-                    modifier = Modifier.size(22.dp)
+                    contentDescription = "الأجهزة المتصلة",
+                    tint = RichGreenButton,
+                    modifier = Modifier.size(24.dp)
                 )
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "الأجهزة المتصلة",
-                    fontSize = 17.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = DeepGreenHeader
                 )
             }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "${devices.size}",
+                    fontSize = 13.sp,
+                    color = AppPalette.Muted
+                )
+                Icon(
+                    imageVector = if (isExpanded) AppIcons.ChevronRight else AppIcons.ChevronLeft,
+                    contentDescription = if (isExpanded) "طي القائمة" else "عرض الأجهزة",
+                    tint = DeepGreenHeader,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
 
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onToggleExpand() }
-                .border(1.dp, WatermarkLineColor, RoundedCornerShape(14.dp)),
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (isExpanded) "▲" else "◀",
-                        fontSize = 14.sp,
-                        color = DeepGreenHeader
-                    )
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "${devices.size} جهاز متصل",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = DeepGreenHeader
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Icon(
-                            imageVector = AppIcons.ConnectedDevices,
-                            contentDescription = "Devices",
-                            tint = RichGreenButton,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                }
-
-                AnimatedVisibility(visible = isExpanded) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        HorizontalDivider(color = WatermarkLineColor)
-
-                        if (hotspotState !is HotspotState.Enabled) {
-                            Text(
-                                text = "الـ Hotspot متوقف حالياً. قم بتشغيله لاكتشاف الأجهزة المتصلة.",
-                                fontSize = 13.sp,
-                                color = Color.Gray,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
-                            )
-                        } else if (devices.isEmpty()) {
-                            Text(
-                                text = "لا توجد أجهزة متصلة بالـ Hotspot حالياً.",
-                                fontSize = 13.sp,
-                                color = Color.Gray,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
-                            )
-                        } else {
-                            devices.forEach { device ->
-                                DeviceItemRow(device = device)
-                            }
-                        }
-                    }
-                }
+        if (isExpanded) {
+            when {
+                hotspotState !is HotspotState.Enabled -> Text(
+                    text = "الـ Hotspot متوقف حالياً. قم بتشغيله لاكتشاف الأجهزة المتصلة.",
+                    fontSize = 13.sp,
+                    color = AppPalette.Muted,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                )
+                devices.isEmpty() -> Text(
+                    text = "لا توجد أجهزة متصلة بالـ Hotspot حالياً.",
+                    fontSize = 13.sp,
+                    color = AppPalette.Muted,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                )
+                else -> devices.forEach { device -> DeviceItemRow(device = device) }
             }
         }
     }
@@ -362,47 +322,59 @@ fun DeviceItemRow(device: ConnectedDevice) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(0.5.dp, WatermarkLineColor, RoundedCornerShape(10.dp)),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = PageBackground),
+            .border(0.5.dp, WatermarkLineColor, RoundedCornerShape(14.dp)),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF3F8FC)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = AppIcons.Smartphone,
+                contentDescription = "هاتف متصل",
+                tint = DeepGreenHeader,
+                modifier = Modifier.size(34.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.End
             ) {
                 Text(
                     text = device.deviceName ?: "جهاز متصل",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
+                    fontSize = 15.sp,
                     color = DeepGreenHeader
                 )
-                Text(
-                    text = device.connectionState,
-                    color = PillGreenDot,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "IP: ${device.ipAddress}",
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 13.sp,
-                    color = Color.DarkGray
-                )
-                Text(
-                    text = "MAC: ${device.macAddress}",
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp,
-                    color = Color.Gray
-                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = device.ipAddress,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        color = AppPalette.Muted
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(PillGreenDot)
+                    )
+                    Text(
+                        text = if (device.connectionState.equals("CONNECTED", ignoreCase = true)) "متصل" else device.connectionState,
+                        fontSize = 12.sp,
+                        color = PillGreenDot,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
     }
