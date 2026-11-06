@@ -91,7 +91,7 @@ class CaptivePortalServer @Inject constructor(
                         } else {
                             val now = System.currentTimeMillis()
                             val remoteAddress = call.request.local.remoteAddress
-                            val clientIp = extractIpv4(call.request.origin.remoteHost)
+                            val clientIp = extractIpv4(call.request.local.remoteHost)
                                 ?: extractIpv4(remoteAddress)
                             val client = clientIp?.let { ip ->
                                 val discovered = clientDiscoveryManager.getConnectedDevices()
@@ -110,7 +110,7 @@ class CaptivePortalServer @Inject constructor(
                             if (client == null) {
                                 Log.w(
                                     "CaptivePortalServer",
-                                    "Could not resolve hotspot client. remoteHost=${call.request.origin.remoteHost}, remoteAddress=$remoteAddress, parsedIp=$clientIp"
+                                    "Could not resolve hotspot client. remoteHost=${call.request.local.remoteHost}, remoteAddress=$remoteAddress, parsedIp=$clientIp"
                                 )
                                 call.respondText(
                                     getHtmlResultPage("تعذر تحديد الجهاز", "أعد الاتصال بشبكة Hotspot ثم حاول مرة أخرى.", false),
