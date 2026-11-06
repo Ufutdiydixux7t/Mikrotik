@@ -78,7 +78,7 @@ class BandwidthTrackerService : Service() {
                 } catch (exception: Exception) {
                     Log.e("BandwidthTracker", "Failed to update voucher usage", exception)
                 }
-                delay(5_000)
+                delay(1_000)
             }
         }
     }
@@ -134,12 +134,14 @@ class BandwidthTrackerService : Service() {
             val isQuotaExceeded = voucher.bytesUsedSoFar >= voucher.dataLimitBytes
 
             if (isDurationExpired || isQuotaExceeded) {
-                // Revoke portal bypass so HTTP traffic returns to the login page; don't add a permanent manual block.
+                // Remove the portal bypass, then drop forwarded traffic until the client authenticates again.
                 val revoked = iptablesManager.revokeMacAddress(mac)
-                if (!revoked) {
-                    // Fail closed if the captive-portal allowance cannot be removed.
-                    iptablesManager.blockMacAddress(mac)
-                    Log.e("BandwidthTracker", "Could not revoke portal access for expired voucher on $mac")
+                val blocked = iptablesManager.blockMacAddress(mac)
+                if (!revoked || !blocked) {
+                    Log.e(
+                        "BandwidthTracker",
+                        "Could not fully revoke expired voucher access for $mac (revoked=$revoked, blocked=$blocked)"
+                    )
                 }
                 activeSessionDao.deactivateSession(mac)
                 Log.i(
