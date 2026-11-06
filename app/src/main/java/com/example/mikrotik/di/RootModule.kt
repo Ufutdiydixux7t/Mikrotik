@@ -1,5 +1,6 @@
 package com.example.mikrotik.di
 
+import android.content.Context
 import com.example.mikrotik.core.captive.CaptivePortalServer
 import com.example.mikrotik.core.hotspot.ClientDiscoveryManager
 import com.example.mikrotik.core.hotspot.HotspotController
@@ -10,6 +11,7 @@ import com.example.mikrotik.core.root.RootShellManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
@@ -34,9 +36,15 @@ object RootModule {
     fun provideHotspotController(
         rootShellManager: RootShellManager,
         iptablesManager: IptablesManager,
-        captivePortalServer: CaptivePortalServer
+        captivePortalServer: CaptivePortalServer,
+        @ApplicationContext context: Context
     ): HotspotController {
-        return HotspotController(rootShellManager, iptablesManager, captivePortalServer)
+        return HotspotController(
+            rootShellManager,
+            iptablesManager,
+            captivePortalServer,
+            context
+        )
     }
 
     @Provides
