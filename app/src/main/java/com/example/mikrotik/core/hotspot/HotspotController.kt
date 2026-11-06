@@ -51,21 +51,34 @@ class HotspotController @Inject constructor(
         if (!Regex("(?i)^[0-9a-f]{2}(:[0-9a-f]{2}){5}$").matches(mac)) return@withContext false
 
         val interfaceName = findActiveApInterface() ?: return@withContext false
-        val stationStatus = rootShellManager.executeCommand("hostapd_cli -i $interfaceName all_sta")
-        val stationOutput = stationStatus.stdout.joinToString("\n")
-        if (stationStatus.isSuccess && !stationOutput.contains("FAIL", ignoreCase = true) &&
-            !stationOutput.contains(mac, ignoreCase = true)
-        ) {
+        fun commandSucceeded(result: com.example.mikrotik.core.root.CommandResult): Boolean =
+            result.isSuccess && !(result.stdout + result.stderr).joinToString(" ").contains("FAIL", ignoreCase = true)
+
+        val deauthentication = rootShellManager.executeCommand(
+            "hostapd_cli -i $interfaceName deauthenticate $mac"
+        )
+        if (commandSucceeded(deauthentication)) {
+            Log.i("HotspotController", "Requested captive-portal recheck for $mac via hostapd deauthentication")
             return@withContext true
         }
 
-        val result = rootShellManager.executeCommand("hostapd_cli -i $interfaceName deauthenticate $mac")
-        val output = (result.stdout + result.stderr).joinToString(" ")
-        val succeeded = result.isSuccess && !output.contains("FAIL", ignoreCase = true)
-        if (!succeeded) {
-            Log.w("HotspotController", "Could not request client reassociation for $mac on $interfaceName: $output")
+        val disassociation = rootShellManager.executeCommand(
+            "hostapd_cli -i $interfaceName disassociate $mac"
+        )
+        if (commandSucceeded(disassociation)) {
+            Log.i("HotspotController", "Requested captive-portal recheck for $mac via hostapd disassociation")
+            return@withContext true
         }
-        succeeded
+
+        val stationDelete = rootShellManager.executeCommand("iw dev $interfaceName station del $mac")
+        if (commandSucceeded(stationDelete)) {
+            Log.i("HotspotController", "Requested captive-portal recheck for $mac via iw station delete")
+            return@withContext true
+        }
+
+        val output = (deauthentication.stderr + disassociation.stderr + stationDelete.stderr).joinToString(" ")
+        Log.w("HotspotController", "Could not force client reassociation for $mac on $interfaceName: $output")
+        false
     }
 
     /**
