@@ -17,6 +17,9 @@ interface VoucherDao {
     @Query("SELECT * FROM vouchers WHERE code = :code LIMIT 1")
     suspend fun getVoucherByCode(code: String): VoucherEntity?
 
+    @Query("UPDATE vouchers SET isBlocked = 1 WHERE code = :code")
+    suspend fun blockVoucherForDeletion(code: String): Int
+
     @Query(
         """UPDATE vouchers
            SET isUsed = 1,

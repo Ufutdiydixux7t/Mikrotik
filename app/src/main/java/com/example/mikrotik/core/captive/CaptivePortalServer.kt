@@ -123,14 +123,6 @@ class CaptivePortalServer @Inject constructor(
                             val voucher = voucherDao.getVoucherByCode(code)
 
                             if (activated > 0 && voucher != null) {
-                                val isAllowed = iptablesManager.authorizeMacAddress(client.macAddress)
-                                if (!isAllowed) {
-                                    call.respondText(
-                                        getHtmlResultPage("تعذر فتح الاتصال", "تم التحقق من البطاقة، لكن تعذر تطبيق قاعدة السماح على الهاتف. أعد المحاولة أو راجع التشخيص.", false),
-                                        contentType = ContentType.Text.Html
-                                    )
-                                    return@post
-                                }
                                 activeSessionDao.insertOrUpdateSession(
                                     ActiveSessionEntity(
                                         macAddress = client.macAddress,
@@ -138,6 +130,26 @@ class CaptivePortalServer @Inject constructor(
                                         voucherCode = code
                                     )
                                 )
+                                val isAllowed = iptablesManager.authorizeMacAddress(client.macAddress)
+                                if (!isAllowed) {
+                                    activeSessionDao.deactivateSession(client.macAddress)
+                                    call.respondText(
+                                        getHtmlResultPage("تعذر فتح الاتصال", "تم التحقق من البطاقة، لكن تعذر تطبيق قاعدة السماح على الهاتف. أعد المحاولة أو راجع التشخيص.", false),
+                                        contentType = ContentType.Text.Html
+                                    )
+                                    return@post
+                                }
+                                val currentVoucher = voucherDao.getVoucherByCode(code)
+                                if (currentVoucher == null || currentVoucher.isBlocked) {
+                                    iptablesManager.revokeMacAddress(client.macAddress)
+                                    activeSessionDao.deactivateSession(client.macAddress)
+                                    activeSessionDao.deleteSession(client.macAddress)
+                                    call.respondText(
+                                        getHtmlResultPage("البطاقة لم تعد متاحة", "تم حذف البطاقة أو إيقافها. أدخل بطاقة أخرى للاتصال.", false),
+                                        contentType = ContentType.Text.Html
+                                    )
+                                    return@post
+                                }
                                 val remainingBytes = (voucher.dataLimitBytes - voucher.bytesUsedSoFar).coerceAtLeast(0L)
                                 val remainingMb = remainingBytes / (1024L * 1024L)
                                 val firstUse = voucher.firstUsedAt ?: now
@@ -386,6 +398,13 @@ class CaptivePortalServer @Inject constructor(
 
     private fun getHtmlResultPage(title: String, message: String, isSuccess: Boolean): String {
         val color = if (isSuccess) "#00796B" else "#C62828"
+        val continueUrl = if (isSuccess) "http://neverssl.com/" else "/"
+        val continueLabel = if (isSuccess) "فتح الإنترنت" else "العودة"
+        val autoRedirect = if (isSuccess) {
+            "<script>window.setTimeout(function(){window.location.replace('$continueUrl');},1200);</script>"
+        } else {
+            ""
+        }
         return """
         <!DOCTYPE html>
         <html lang="ar" dir="rtl">
@@ -448,12 +467,13 @@ class CaptivePortalServer @Inject constructor(
                 <div class="card">
                     <div class="title">$title</div>
                     <div class="message">$message</div>
-                    <a href="/" class="btn-back">العودة</a>
+                    <a href="$continueUrl" class="btn-back">$continueLabel</a>
                 </div>
             </div>
             <div style="margin-bottom: 20px; font-size: 12px; color: #888888;">
                 Powered by Hotspot
             </div>
+            $autoRedirect
         </body>
         </html>
         """.trimIndent()

@@ -17,6 +17,9 @@ interface ActiveSessionDao {
     @Query("SELECT * FROM active_sessions WHERE macAddress = :macAddress LIMIT 1")
     suspend fun getSessionByMac(macAddress: String): ActiveSessionEntity?
 
+    @Query("SELECT * FROM active_sessions WHERE voucherCode = :voucherCode")
+    suspend fun getSessionsByVoucherCode(voucherCode: String): List<ActiveSessionEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateSession(session: ActiveSessionEntity)
 

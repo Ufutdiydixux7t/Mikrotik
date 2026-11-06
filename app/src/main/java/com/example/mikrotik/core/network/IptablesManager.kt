@@ -155,6 +155,18 @@ class IptablesManager @Inject constructor(
 
     suspend fun unblockMacAddress(macAddress: String): Boolean = setMacBlock(macAddress, block = false)
 
+    suspend fun revokeMacAddress(macAddress: String): Boolean {
+        val mac = macAddress.lowercase()
+        if (!macPattern.matches(mac)) return false
+        val identity = rootShellManager.executeCommand("id")
+        if (!identity.isSuccess || !identity.stdout.joinToString(" ").contains("uid=0")) return false
+
+        val v4 = setMacRule("iptables", filterChainV4, mac, "ACCEPT", add = false)
+        val v6 = setMacRule("ip6tables", filterChainV6, mac, "ACCEPT", add = false)
+        val portalBypass = setMacRule("iptables -t nat", natChain, mac, "RETURN", add = false)
+        return v4 && v6 && portalBypass
+    }
+
     private suspend fun setMacBlock(macAddress: String, block: Boolean): Boolean {
         val mac = macAddress.lowercase()
         if (!macPattern.matches(mac)) return false

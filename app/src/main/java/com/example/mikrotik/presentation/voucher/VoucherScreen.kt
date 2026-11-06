@@ -34,6 +34,7 @@ fun VoucherScreen(
     viewModel: VoucherViewModel
 ) {
     val vouchers by viewModel.vouchers.collectAsState()
+    val deleteError by viewModel.deleteError.collectAsState()
 
     var selectedDurationIndex by remember { mutableStateOf(0) }
     var selectedDataIndex by remember { mutableStateOf(1) }
@@ -314,7 +315,11 @@ fun VoucherScreen(
                 }
             } else {
                 vouchers.forEach { voucher ->
-                    VoucherItemCard(voucher = voucher)
+                    VoucherItemCard(
+                        voucher = voucher,
+                        deleteError = deleteError,
+                        onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
+                    )
                 }
             }
         }
@@ -322,7 +327,12 @@ fun VoucherScreen(
 }
 
 @Composable
-fun VoucherItemCard(voucher: VoucherEntity) {
+fun VoucherItemCard(
+    voucher: VoucherEntity,
+    deleteError: String?,
+    onDelete: (VoucherEntity, (Boolean) -> Unit) -> Unit
+) {
+    var showDeleteConfirmation by remember(voucher.code) { mutableStateOf(false) }
     val dataGb = voucher.dataLimitBytes / (1024 * 1024 * 1024)
     val dataText = if (dataGb > 0) "$dataGb GB" else "${voucher.dataLimitBytes / (1024 * 1024)} MB"
     val daysText = "${voucher.durationMinutes / (24 * 60)} يوم"
@@ -351,7 +361,12 @@ fun VoucherItemCard(voucher: VoucherEntity) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = "‹", fontSize = 18.sp, color = Color.Gray)
+            Text(
+                text = "حذف",
+                modifier = Modifier.clickable { showDeleteConfirmation = true },
+                fontSize = 12.sp,
+                color = Color(0xFFC62828)
+            )
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -409,5 +424,29 @@ fun VoucherItemCard(voucher: VoucherEntity) {
                 )
             }
         }
+    }
+
+    if (showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = { Text("حذف البطاقة؟") },
+            text = {
+                Text(
+                    deleteError ?: "سيُحذف الرمز نهائيًا، ويُسحب الإنترنت فورًا من الجهاز المرتبط به. لن يمكن استخدام البطاقة بعد حذفها."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDelete(voucher) { succeeded ->
+                            if (succeeded) showDeleteConfirmation = false
+                        }
+                    }
+                ) { Text("حذف البطاقة", color = Color(0xFFC62828)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmation = false }) { Text("إلغاء") }
+            }
+        )
     }
 }
