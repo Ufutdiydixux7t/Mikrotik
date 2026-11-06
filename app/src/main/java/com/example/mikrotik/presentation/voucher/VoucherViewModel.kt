@@ -31,8 +31,15 @@ class VoucherViewModel @Inject constructor(
     private val _creationError = MutableStateFlow<String?>(null)
     val creationError: StateFlow<String?> = _creationError.asStateFlow()
 
+    private val _creationSuccess = MutableStateFlow<String?>(null)
+    val creationSuccess: StateFlow<String?> = _creationSuccess.asStateFlow()
+
     fun clearCreationError() {
         _creationError.value = null
+    }
+
+    fun dismissCreationSuccess() {
+        _creationSuccess.value = null
     }
 
     fun createVoucher(durationDays: Int, dataAmount: String, dataUnit: VoucherDataUnit) {
@@ -43,17 +50,23 @@ class VoucherViewModel @Inject constructor(
         }
 
         _creationError.value = null
+        _creationSuccess.value = null
         viewModelScope.launch {
-            val code = "MDI-" + (1000..9999).random()
-            val durationMinutes = durationDays * 24 * 60L
+            try {
+                val code = "MDI-" + (1000..9999).random()
+                val durationMinutes = durationDays * 24 * 60L
 
-            val voucher = VoucherEntity(
-                code = code,
-                durationMinutes = durationMinutes,
-                dataLimitBytes = dataBytes,
-                createdAt = System.currentTimeMillis()
-            )
-            voucherDao.insertVoucher(voucher)
+                val voucher = VoucherEntity(
+                    code = code,
+                    durationMinutes = durationMinutes,
+                    dataLimitBytes = dataBytes,
+                    createdAt = System.currentTimeMillis()
+                )
+                voucherDao.insertVoucher(voucher)
+                _creationSuccess.value = code
+            } catch (exception: Exception) {
+                _creationError.value = "تعذر إنشاء البطاقة: ${exception.message ?: "خطأ غير معروف"}"
+            }
         }
     }
 

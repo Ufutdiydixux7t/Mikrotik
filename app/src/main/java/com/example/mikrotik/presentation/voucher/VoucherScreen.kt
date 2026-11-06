@@ -16,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -24,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
@@ -56,6 +58,7 @@ fun VoucherScreen(
     val vouchers by viewModel.vouchers.collectAsState()
     val deleteError by viewModel.deleteError.collectAsState()
     val creationError by viewModel.creationError.collectAsState()
+    val creationSuccess by viewModel.creationSuccess.collectAsState()
     val context = LocalContext.current
 
     var selectedFilterTab by remember { mutableStateOf(VoucherFilterTab.UNUSED) }
@@ -99,8 +102,9 @@ fun VoucherScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+            ) {
             // Creation Card
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -154,6 +158,7 @@ fun VoucherScreen(
                                 value = durationOptions[selectedDurationIndex],
                                 onValueChange = {},
                                 readOnly = true,
+                                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Right),
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = durationExpanded) },
                                 shape = RoundedCornerShape(12.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -221,6 +226,7 @@ fun VoucherScreen(
                             },
                             label = { Text("أدخل الحجم") },
                             placeholder = { Text("مثال: 500 أو 1.5") },
+                            textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Right),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             trailingIcon = {
@@ -317,6 +323,7 @@ fun VoucherScreen(
                     }
                 }
             }
+            }
 
             // Filter Tabs (3 buttons: غير مستخدمة، نشطة، منتهية)
             Row(
@@ -392,6 +399,41 @@ fun VoucherScreen(
                 )
             }
         }
+    }
+
+    creationSuccess?.let { code ->
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissCreationSuccess() },
+            icon = {
+                Icon(
+                    imageVector = AppIcons.Shield,
+                    contentDescription = "تم بنجاح",
+                    tint = Color(0xFF2E7D32),
+                    modifier = Modifier.size(48.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "تم إنشاء البطاقة بنجاح",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "رمز البطاقة: $code",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.dismissCreationSuccess() }) {
+                    Text("موافق", color = RichGreenButton, fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = Color.White
+        )
     }
 }
 
