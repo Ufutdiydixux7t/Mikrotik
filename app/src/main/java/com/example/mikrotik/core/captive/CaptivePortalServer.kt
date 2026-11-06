@@ -47,7 +47,7 @@ class CaptivePortalServer @Inject constructor(
             server = embeddedServer(CIO, host = "0.0.0.0", port = port) {
                 routing {
                     intercept(ApplicationCallPipeline.Call) {
-                        val clientIp = call.request.local.remoteAddress
+                        val clientIp = call.request.origin.remoteAddress
                         val uri = call.request.uri
                         Log.d("CaptivePortalServer", "Incoming request: IP=$clientIp, URI=$uri")
                     }
@@ -96,8 +96,10 @@ class CaptivePortalServer @Inject constructor(
                             call.respondText(getHtmlResultPage("خطأ", "يرجى إدخال كود الكرت بشكل صحيح.", false), contentType = ContentType.Text.Html)
                         } else {
                             val now = System.currentTimeMillis()
-                            val remoteAddress = call.request.local.remoteAddress
-                            val clientIp = extractIpv4(call.request.local.remoteHost)
+                            val requestOrigin = call.request.origin
+                            val remoteAddress = requestOrigin.remoteAddress
+                            val remoteHost = requestOrigin.remoteHost
+                            val clientIp = extractIpv4(remoteHost)
                                 ?: extractIpv4(remoteAddress)
                             val client = clientIp?.let { ip ->
                                 val mac = clientDiscoveryManager.findMacAddressForIp(ip)
@@ -117,7 +119,7 @@ class CaptivePortalServer @Inject constructor(
                             if (client == null) {
                                 Log.w(
                                     "CaptivePortalServer",
-                                    "Could not resolve hotspot client. remoteHost=${call.request.local.remoteHost}, remoteAddress=$remoteAddress, parsedIp=$clientIp"
+                                    "Could not resolve hotspot client. remoteHost=$remoteHost, remoteAddress=$remoteAddress, parsedIp=$clientIp"
                                 )
                                 call.respondText(
                                     getHtmlResultPage("تعذر تحديد الجهاز", "أعد الاتصال بشبكة Hotspot ثم حاول مرة أخرى.", false),
@@ -126,6 +128,10 @@ class CaptivePortalServer @Inject constructor(
                                 return@post
                             }
 
+                            Log.i(
+                                "CaptivePortalServer",
+                                "Resolved voucher client: ip=${client.ipAddress}, interface=${client.interfaceName}"
+                            )
                             if (blockedMacDao.isMacBlocked(client.macAddress)) {
                                 call.respondText(
                                     getHtmlResultPage("الجهاز محظور", "هذا الجهاز محظور من لوحة التحكم. أزل الحظر أولاً ثم أعد المحاولة.", false),
@@ -153,6 +159,10 @@ class CaptivePortalServer @Inject constructor(
                                 )
                                 val isAllowed = iptablesManager.authorizeMacAddress(client.macAddress)
                                 if (!isAllowed) {
+                                    Log.e(
+                                        "CaptivePortalServer",
+                                        "Could not apply forwarding allow-rules for client ip=${client.ipAddress}"
+                                    )
                                     activeSessionDao.deactivateSession(client.macAddress)
                                     call.respondText(
                                         getHtmlResultPage("تعذر فتح الاتصال", "تم التحقق من البطاقة، لكن تعذر تطبيق قاعدة السماح على الهاتف. أعد المحاولة أو راجع التشخيص.", false),
@@ -160,6 +170,10 @@ class CaptivePortalServer @Inject constructor(
                                     )
                                     return@post
                                 }
+                                Log.i(
+                                    "CaptivePortalServer",
+                                    "Forwarding allow-rules applied for client ip=${client.ipAddress}"
+                                )
                                 val currentVoucher = voucherDao.getVoucherByCode(code)
                                 if (currentVoucher == null || currentVoucher.isBlocked) {
                                     iptablesManager.revokeMacAddress(client.macAddress)

@@ -105,6 +105,7 @@ class HotspotController @Inject constructor(
     }
 
     private suspend fun configureCaptivePortal(interfaceName: String): Boolean {
+        Log.i("HotspotController", "Configuring captive portal and client routing on AP interface $interfaceName")
         if (!iptablesManager.installCaptiveGate(interfaceName)) return false
         if (!iptablesManager.applyCaptivePortalRedirect(interfaceName, 8080)) return false
         if (!iptablesManager.installClientRouting(interfaceName)) return false
@@ -147,41 +148,78 @@ class HotspotController @Inject constructor(
         val ipAddrRes = rootShellManager.executeCommand("ip addr show")
         if (!ipAddrRes.isSuccess) return@withContext null
 
+        val apInterfaceCandidates = mutableListOf<String>()
+        val standardSubnetCandidates = mutableListOf<String>()
         var currentIface: String? = null
         var isUp = false
-        var hasHotspotIp = false
+        var hasStandardHotspotIp = false
+        var hasPrivateApIp = false
+
+        fun collectInterfaceCandidate() {
+            val name = currentIface ?: return
+            if (!isUp) return
+            if (hasPrivateApIp) {
+                apInterfaceCandidates += name
+            } else if (hasStandardHotspotIp) {
+                if (isLikelyApInterface(name)) apInterfaceCandidates += name
+                else standardSubnetCandidates += name
+            }
+        }
 
         for (line in ipAddrRes.stdout) {
             if (line.contains(":") && !line.startsWith(" ")) {
-                if (currentIface != null && isUp && hasHotspotIp) {
-                    return@withContext currentIface
-                }
+                collectInterfaceCandidate()
 
                 val parts = line.split(":")
                 currentIface = parts.getOrNull(1)?.trim()?.split("@")?.get(0)
-                isUp = line.contains("UP")
-                hasHotspotIp = false
+                isUp = hasUpFlag(line)
+                hasStandardHotspotIp = false
+                hasPrivateApIp = false
             } else if (line.trim().startsWith("inet ")) {
-                val ip = line.trim().split(" ")[1].split("/")[0]
-                if (ip.startsWith("192.168.43.") || ip.startsWith("192.168.49.") || ip.startsWith("192.168.50.") || ip.startsWith("192.168.1.")) {
-                    hasHotspotIp = true
+                val ip = line.trim().split("\\s+".toRegex()).getOrNull(1)?.substringBefore('/') ?: continue
+                if (ip.startsWith("192.168.43.") || ip.startsWith("192.168.49.") || ip.startsWith("192.168.50.")) {
+                    hasStandardHotspotIp = true
+                }
+                if (ip.startsWith("192.168.1.") && currentIface?.let { isLikelyApInterface(it) } == true) {
+                    hasPrivateApIp = true
                 }
             }
         }
 
-        if (currentIface != null && isUp && hasHotspotIp) {
-            return@withContext currentIface
-        }
+        collectInterfaceCandidate()
+        val preferredApInterface = apInterfaceCandidates.firstOrNull()
+        if (preferredApInterface != null) return@withContext preferredApInterface
+        val standardSubnetInterface = standardSubnetCandidates.firstOrNull()
+        if (standardSubnetInterface != null) return@withContext standardSubnetInterface
 
         // Fallback: check for standard AP interface names that are UP
         val apCandidates = listOf("ap0", "swlan0", "softap0", "wlan1")
         for (candidate in apCandidates) {
             val checkRes = rootShellManager.executeCommand("ip link show $candidate")
-            if (checkRes.isSuccess && checkRes.stdout.joinToString().contains("UP")) {
+            val addressRes = rootShellManager.executeCommand("ip -o -4 addr show dev $candidate")
+            val hasIpv4Address = addressRes.isSuccess && addressRes.stdout.any {
+                Regex("\\binet\\s+[0-9.]+/[0-9]{1,2}").containsMatchIn(it)
+            }
+            if (checkRes.isSuccess && hasUpFlag(checkRes.stdout.joinToString("\n")) && hasIpv4Address) {
                 return@withContext candidate
             }
         }
 
         null
+    }
+
+    private fun isLikelyApInterface(name: String): Boolean {
+        val normalized = name.lowercase()
+        return normalized.startsWith("ap") ||
+            normalized.startsWith("swlan") ||
+            normalized.contains("softap") ||
+            normalized == "wlan1" ||
+            normalized.startsWith("br-ap") ||
+            normalized.contains("ap_br")
+    }
+
+    private fun hasUpFlag(interfaceLine: String): Boolean {
+        val flags = Regex("<([^>]*)>").find(interfaceLine)?.groupValues?.getOrNull(1) ?: return false
+        return flags.split(',').any { it.trim() == "UP" }
     }
 }
