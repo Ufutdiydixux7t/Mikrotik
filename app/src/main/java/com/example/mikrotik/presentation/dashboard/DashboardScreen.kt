@@ -35,6 +35,7 @@ fun DashboardScreen(
 ) {
     val activeSessions by viewModel.activeSessions.collectAsState()
     val blockedMacs by viewModel.blockedMacs.collectAsState()
+    val deviceUsage by viewModel.deviceUsage.collectAsState()
 
     Column(
         modifier = Modifier
@@ -132,7 +133,9 @@ fun DashboardScreen(
                 activeSessions.forEach { session ->
                     ActiveSessionCard(
                         session = session,
-                        onBlock = { viewModel.blockDevice(session.macAddress) }
+                        usage = deviceUsage[session.macAddress],
+                        onBlock = { viewModel.blockDevice(session.macAddress) },
+                        onRename = viewModel::saveDeviceName
                     )
                 }
             }
@@ -176,9 +179,18 @@ fun DashboardScreen(
 @Composable
 fun ActiveSessionCard(
     session: ActiveSessionEntity,
-    onBlock: () -> Unit
+    usage: DeviceUsageInfo?,
+    onBlock: () -> Unit,
+    onRename: (String, String) -> Unit
 ) {
-    val totalMb = (session.bytesDownloaded + session.bytesUploaded) / (1024 * 1024)
+    val fallbackName = "جهاز ${session.macAddress.takeLast(5)}"
+    val deviceName = usage?.displayName ?: fallbackName
+    var showRenameDialog by remember(session.macAddress) { mutableStateOf(false) }
+    var editedName by remember(session.macAddress) { mutableStateOf("") }
+    val quotaBytes = usage?.quotaBytes ?: 0L
+    val usageFraction = if (quotaBytes > 0L) {
+        ((usage?.bytesUsed ?: 0L).toDouble() / quotaBytes.toDouble()).toFloat().coerceIn(0f, 1f)
+    } else 0f
 
     Card(
         modifier = Modifier
@@ -243,28 +255,99 @@ fun ActiveSessionCard(
             }
 
             Spacer(modifier = Modifier.height(8.dp))
-            HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
-            Spacer(modifier = Modifier.height(8.dp))
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                TextButton(
+                    onClick = {
+                        editedName = if (deviceName == fallbackName) "" else deviceName
+                        showRenameDialog = true
+                    },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                ) {
+                    Text("تعديل الاسم", fontSize = 12.sp, color = RichGreenButton)
+                }
                 Text(
-                    text = "الكود: ${session.voucherCode}",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = RichGreenButton
-                )
-                Text(
-                    text = "الاستهلاك: $totalMb MB",
-                    fontSize = 12.sp,
+                    text = deviceName,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     color = DeepGreenHeader
                 )
             }
+            Text(
+                text = when {
+                    usage == null -> "جارٍ قراءة الاستهلاك..."
+                    !usage.isMeasured -> "عداد الاستهلاك غير متاح حالياً"
+                    usage.quotaBytes <= 0L -> "الاستهلاك: ${formatUsageBytes(usage.bytesUsed)}"
+                    else -> "${formatUsageBytes(usage.bytesUsed)} من ${formatUsageBytes(usage.quotaBytes)}"
+                },
+                modifier = Modifier.fillMaxWidth(),
+                fontSize = 12.sp,
+                color = Color.Gray,
+                textAlign = TextAlign.End
+            )
+            LinearProgressIndicator(
+                progress = usageFraction,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(8.dp)),
+                color = when {
+                    usageFraction >= 0.9f -> Color(0xFFC62828)
+                    usageFraction >= 0.7f -> Color(0xFFF9A825)
+                    else -> RichGreenButton
+                },
+                trackColor = Color(0xFFE6F0EC)
+            )
+            HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "الكود: ${session.voucherCode}",
+                modifier = Modifier.fillMaxWidth(),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = RichGreenButton,
+                textAlign = TextAlign.Start
+            )
         }
     }
+
+    if (showRenameDialog) {
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("تعديل اسم الجهاز") },
+            text = {
+                OutlinedTextField(
+                    value = editedName,
+                    onValueChange = { editedName = it.take(40) },
+                    label = { Text("اسم الجهاز") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (editedName.isNotBlank()) onRename(session.macAddress, editedName)
+                        showRenameDialog = false
+                    },
+                    enabled = editedName.isNotBlank()
+                ) { Text("حفظ") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) { Text("إلغاء") }
+            }
+        )
+    }
+}
+
+private fun formatUsageBytes(bytes: Long): String = when {
+    bytes >= 1024L * 1024L * 1024L -> "${"%.1f".format(bytes / (1024.0 * 1024 * 1024))} GB"
+    bytes >= 1024L * 1024L -> "${"%.1f".format(bytes / (1024.0 * 1024))} MB"
+    bytes >= 1024L -> "${"%.1f".format(bytes / 1024.0)} KB"
+    else -> "$bytes B"
 }
 
 @Composable
