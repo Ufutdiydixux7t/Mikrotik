@@ -13,6 +13,60 @@ class IptablesManager @Inject constructor(
     private val natChain = "MM_CAPTIVE_N"
     private val macPattern = Regex("(?i)^[0-9a-f]{2}(:[0-9a-f]{2}){5}$")
     private val interfacePattern = Regex("^[A-Za-z0-9_.-]{1,15}$")
+    private val stationHeaderPattern = Regex("(?i)^\\s*Station\\s+([0-9a-f]{2}(?::[0-9a-f]{2}){5})")
+
+    /** Reads per-station Wi-Fi byte counters, covering all IP versions when the driver exposes them. */
+    suspend fun getWifiStationUsageBytes(macAddress: String, interfaceName: String): Long? {
+        val mac = macAddress.lowercase()
+        if (!macPattern.matches(mac) || !interfacePattern.matches(interfaceName)) return null
+
+        val iw = rootShellManager.executeCommand("iw dev $interfaceName station get $mac")
+        parseStationUsageBytes(iw.stdout)?.let { return it }
+
+        val iwDump = rootShellManager.executeCommand("iw dev $interfaceName station dump")
+        if (iwDump.isSuccess) {
+            parseStationDumpUsageBytes(iwDump.stdout, mac)?.let { return it }
+        }
+
+        val hostapd = rootShellManager.executeCommand("hostapd_cli -i $interfaceName sta $mac")
+        val hostapdOutput = hostapd.stdout + hostapd.stderr
+        if (hostapd.isSuccess && !hostapdOutput.joinToString(" ").contains("FAIL", ignoreCase = true)) {
+            return parseStationUsageBytes(hostapdOutput)
+        }
+        return null
+    }
+
+    private fun parseStationUsageBytes(output: List<String>): Long? {
+        val text = output.joinToString("\n")
+        val received = parseStationDirectionBytes(text, "rx") ?: return null
+        val transmitted = parseStationDirectionBytes(text, "tx") ?: return null
+        return if (Long.MAX_VALUE - received < transmitted) Long.MAX_VALUE else received + transmitted
+    }
+
+    private fun parseStationDumpUsageBytes(output: List<String>, targetMac: String): Long? {
+        var currentMac: String? = null
+        val stationLines = mutableListOf<String>()
+        for (line in output) {
+            val header = stationHeaderPattern.find(line)
+            if (header != null) {
+                if (currentMac == targetMac) {
+                    parseStationUsageBytes(stationLines)?.let { return it }
+                }
+                currentMac = header.groupValues[1].lowercase()
+                stationLines.clear()
+            }
+            if (currentMac == targetMac) stationLines += line
+        }
+        return if (currentMac == targetMac) parseStationUsageBytes(stationLines) else null
+    }
+
+    private fun parseStationDirectionBytes(text: String, direction: String): Long? {
+        val wideCounter = Regex("(?im)^\\s*${Regex.escape(direction)}[_ ]bytes64\\s*[:=]\\s*(\\d+)\\b")
+            .find(text)?.groupValues?.getOrNull(1)?.toLongOrNull()
+        if (wideCounter != null) return wideCounter
+        return Regex("(?im)^\\s*${Regex.escape(direction)}[_ ]bytes\\s*[:=]\\s*(\\d+)\\b")
+            .find(text)?.groupValues?.getOrNull(1)?.toLongOrNull()
+    }
 
     /** Installs fail-closed forwarding filters scoped only to the active AP interface. */
     suspend fun installCaptiveGate(interfaceName: String): Boolean {

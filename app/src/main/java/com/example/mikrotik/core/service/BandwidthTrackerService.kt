@@ -38,6 +38,8 @@ class BandwidthTrackerService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var trackingJob: Job? = null
     private var lastBlockedEnforcementAt = 0L
+    private var cachedApInterface: String? = null
+    private var lastApInterfaceLookupAt = 0L
     private val usagePreferences by lazy { getSharedPreferences("voucher_usage_counters", MODE_PRIVATE) }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -91,6 +93,7 @@ class BandwidthTrackerService : Service() {
         enforceBlockedDevicesIfDue()
         val sessions = activeSessionDao.getActiveSessionsSnapshot()
             .distinctBy { it.macAddress.lowercase() }
+        val apInterface = if (sessions.isNotEmpty()) getCachedApInterface() else null
         for (session in sessions) {
             val mac = session.macAddress
             if (blockedMacDao.isMacBlocked(mac)) {
@@ -124,16 +127,32 @@ class BandwidthTrackerService : Service() {
                 continue
             }
 
-            val counterBytes = iptablesManager.getDeviceUsageBytes(mac, session.ipAddress)
+            val wifiCounterBytes = apInterface?.let { iptablesManager.getWifiStationUsageBytes(mac, it) }
+            val counterSource = if (wifiCounterBytes != null) "wifi" else "iptables"
+            val counterBytes = wifiCounterBytes ?: iptablesManager.getDeviceUsageBytes(mac, session.ipAddress)
             if (counterBytes != null) {
-                val counterKey = "last_${voucher.code}_${mac.lowercase().replace(':', '_')}"
-                val previousBytes = usagePreferences.getLong(counterKey, -1L)
-                val addedBytes = when {
-                    previousBytes < 0L -> counterBytes
-                    counterBytes >= previousBytes -> counterBytes - previousBytes
-                    else -> counterBytes // iptables counters were reset with the hotspot rules
+                val identity = "${voucher.code}_${mac.lowercase().replace(':', '_')}"
+                val legacyCounterKey = "last_$identity"
+                val counterKey = "${legacyCounterKey}_$counterSource"
+                val sourceMarkerKey = "source_$identity"
+                val previousSource = usagePreferences.getString(sourceMarkerKey, null)
+                val previousBytes = when {
+                    previousSource == counterSource -> usagePreferences.getLong(counterKey, -1L)
+                    previousSource == null && counterSource == "iptables" ->
+                        usagePreferences.getLong(legacyCounterKey, -1L)
+                    else -> -1L
                 }
-                usagePreferences.edit().putLong(counterKey, counterBytes).apply()
+                val baselineOnly = (previousSource == null && counterSource == "wifi") ||
+                    (previousSource != null && previousSource != counterSource)
+                val addedBytes = when {
+                    previousBytes < 0L -> if (baselineOnly) 0L else counterBytes
+                    counterBytes >= previousBytes -> counterBytes - previousBytes
+                    else -> counterBytes // The station or firewall counters were reset.
+                }
+                usagePreferences.edit()
+                    .putLong(counterKey, counterBytes)
+                    .putString(sourceMarkerKey, counterSource)
+                    .apply()
 
                 if (addedBytes > 0L) {
                     val nextUsage = if (Long.MAX_VALUE - voucher.bytesUsedSoFar < addedBytes) {
@@ -164,6 +183,15 @@ class BandwidthTrackerService : Service() {
                 )
             }
         }
+    }
+
+    private suspend fun getCachedApInterface(): String? {
+        val now = SystemClock.elapsedRealtime()
+        if (lastApInterfaceLookupAt == 0L || now - lastApInterfaceLookupAt >= AP_INTERFACE_REFRESH_INTERVAL_MS) {
+            cachedApInterface = hotspotController.findActiveApInterface()
+            lastApInterfaceLookupAt = now
+        }
+        return cachedApInterface
     }
 
     private suspend fun enforceBlockedDevicesIfDue() {
@@ -231,5 +259,6 @@ class BandwidthTrackerService : Service() {
 
     private companion object {
         const val BLOCKED_ENFORCEMENT_INTERVAL_MS = 5_000L
+        const val AP_INTERFACE_REFRESH_INTERVAL_MS = 5_000L
     }
 }
