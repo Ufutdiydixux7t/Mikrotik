@@ -174,6 +174,7 @@ class BandwidthTrackerService : Service() {
         }
 
         activeSessionDao.deactivateSession(mac)
+        activeSessionDao.deleteSession(mac)
         if (!hotspotController.requestClientReauthentication(mac)) {
             Log.w("BandwidthTracker", "Client will rely on the next captive probe to reopen login for $mac")
         }
