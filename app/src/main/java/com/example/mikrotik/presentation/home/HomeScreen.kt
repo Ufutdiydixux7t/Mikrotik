@@ -212,13 +212,13 @@ fun TotalUsageCard(usageSummary: TotalUsageSummary) {
                 }
                 Spacer(modifier = Modifier.height(5.dp))
                 Text(
-                    text = appText("مجموع استهلاك أجهزة البطاقات • اسحب للشهري والسنوي", "Combined voucher-device usage • swipe for monthly and yearly"),
+                    text = appText("استهلاك الهاتف عبر Wi-Fi وبيانات الهاتف • اسحب للشهري والسنوي", "Phone network usage over Wi-Fi and mobile data • swipe for monthly and yearly"),
                     color = DeepGreenHeader.copy(alpha = 0.72f),
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center
                 )
                 Text(
-                    text = appText("يبدأ تجميع استهلاك الأجهزة من أول قراءة بعد التحديث", "Device totals accumulate from the first successful counter reading after this update"),
+                    text = appText("يعتمد على عداد حركة الشبكة في الهاتف، وليس مجموع البطاقات", "Based on the phone's network counters, not the sum of vouchers"),
                     color = AppPalette.Muted,
                     fontSize = 10.sp,
                     textAlign = TextAlign.Center

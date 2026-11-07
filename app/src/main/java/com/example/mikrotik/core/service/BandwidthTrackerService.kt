@@ -24,8 +24,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.time.LocalDate
-import java.time.ZoneId
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -43,7 +41,6 @@ class BandwidthTrackerService : Service() {
     private var cachedApInterface: String? = null
     private var lastApInterfaceLookupAt = 0L
     private val usagePreferences by lazy { getSharedPreferences("voucher_usage_counters", MODE_PRIVATE) }
-    private val clientUsageHistory by lazy { getSharedPreferences(CLIENT_USAGE_HISTORY_PREFS, MODE_PRIVATE) }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -134,7 +131,6 @@ class BandwidthTrackerService : Service() {
             val counterSource = if (wifiCounterBytes != null) "wifi" else "iptables"
             val counterBytes = wifiCounterBytes ?: iptablesManager.getDeviceUsageBytes(mac, session.ipAddress)
             if (counterBytes != null) {
-                markClientUsageAvailable()
                 val identity = "${voucher.code}_${mac.lowercase().replace(':', '_')}"
                 val legacyCounterKey = "last_$identity"
                 val counterKey = "${legacyCounterKey}_$counterSource"
@@ -169,7 +165,6 @@ class BandwidthTrackerService : Service() {
                     )
                     voucherDao.updateVoucher(updatedVoucher)
                     voucher = updatedVoucher
-                    recordClientUsage(addedBytes)
                 }
             } else {
                 Log.w("BandwidthTracker", "Could not read traffic counters for $mac; quota usage was not changed")
@@ -197,23 +192,6 @@ class BandwidthTrackerService : Service() {
             lastApInterfaceLookupAt = now
         }
         return cachedApInterface
-    }
-
-    private fun markClientUsageAvailable() {
-        if (!clientUsageHistory.getBoolean(CLIENT_USAGE_TRACKING_AVAILABLE, false)) {
-            clientUsageHistory.edit().putBoolean(CLIENT_USAGE_TRACKING_AVAILABLE, true).apply()
-        }
-    }
-
-    private fun recordClientUsage(bytes: Long) {
-        if (bytes <= 0L) return
-        val dateKey = "$CLIENT_USAGE_DAY_KEY_PREFIX${LocalDate.now(ZoneId.systemDefault())}"
-        val previous = clientUsageHistory.getLong(dateKey, 0L)
-        val total = if (previous > Long.MAX_VALUE - bytes) Long.MAX_VALUE else previous + bytes
-        clientUsageHistory.edit()
-            .putLong(dateKey, total)
-            .putBoolean(CLIENT_USAGE_TRACKING_AVAILABLE, true)
-            .apply()
     }
 
     private suspend fun enforceBlockedDevicesIfDue() {
@@ -282,8 +260,5 @@ class BandwidthTrackerService : Service() {
     private companion object {
         const val BLOCKED_ENFORCEMENT_INTERVAL_MS = 5_000L
         const val AP_INTERFACE_REFRESH_INTERVAL_MS = 5_000L
-        const val CLIENT_USAGE_HISTORY_PREFS = "voucher_client_usage_history_v1"
-        const val CLIENT_USAGE_DAY_KEY_PREFIX = "day:"
-        const val CLIENT_USAGE_TRACKING_AVAILABLE = "tracking_available"
     }
 }
