@@ -23,6 +23,9 @@ import com.example.mikrotik.core.captive.PortalTheme
 import com.example.mikrotik.core.root.RootStatus
 import com.example.mikrotik.core.root.SystemDiagnosticReport
 import com.example.mikrotik.presentation.ui.components.AppTopBar
+import com.example.mikrotik.presentation.ui.localization.AppLanguage
+import com.example.mikrotik.presentation.ui.localization.LocalAppLanguage
+import com.example.mikrotik.presentation.ui.localization.appText
 import com.example.mikrotik.presentation.ui.theme.AppIcons
 import com.example.mikrotik.ui.theme.AppPalette
 
@@ -45,7 +48,9 @@ sealed class SettingsDestination {
 fun DiagnosticsScreen(
     viewModel: DiagnosticsViewModel,
     isDarkModeEnabled: Boolean,
-    onDarkModeToggle: (Boolean) -> Unit
+    onDarkModeToggle: (Boolean) -> Unit,
+    language: AppLanguage,
+    onLanguageChange: (AppLanguage) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var currentDestination by remember { mutableStateOf<SettingsDestination>(SettingsDestination.MainSettings) }
@@ -56,12 +61,12 @@ fun DiagnosticsScreen(
     ) {
         AppTopBar(
             title = when (currentDestination) {
-                SettingsDestination.MainSettings -> "الإعدادات"
-                SettingsDestination.SystemInfo -> "معلومات النظام"
-                SettingsDestination.LoginPage -> "واجهة تسجيل الدخول"
-                SettingsDestination.AboutUs -> "نظرة عنا"
-                SettingsDestination.Privacy -> "البيانات والخصوصية"
-                SettingsDestination.Language -> "اللغة"
+                SettingsDestination.MainSettings -> appText("الإعدادات", "Settings")
+                SettingsDestination.SystemInfo -> appText("معلومات النظام", "System information")
+                SettingsDestination.LoginPage -> appText("واجهة تسجيل الدخول", "Login portal")
+                SettingsDestination.AboutUs -> appText("نظرة عنا", "About")
+                SettingsDestination.Privacy -> appText("البيانات والخصوصية", "Data & privacy")
+                SettingsDestination.Language -> appText("اللغة", "Language")
             },
             subtitle = "AL RABDI NET",
             startIcon = AppIcons.SettingsGear
@@ -78,6 +83,7 @@ fun DiagnosticsScreen(
                     MainSettingsList(
                         isDarkModeEnabled = isDarkModeEnabled,
                         onDarkModeToggle = onDarkModeToggle,
+                        language = language,
                         onNavigate = { currentDestination = it }
                     )
                 }
@@ -101,17 +107,85 @@ fun DiagnosticsScreen(
                 }
                 SettingsDestination.Privacy -> {
                     BlankDetailScreen(
-                        title = "البيانات والخصوصية",
-                        message = "جميع بيانات الحزم والبطاقات مخزنة محلياً في قاعدة البيانات المشفرة.",
+                        title = appText("البيانات والخصوصية", "Data & privacy"),
+                        message = appText(
+                            "جميع بيانات الحزم والبطاقات مخزنة محلياً في قاعدة البيانات المشفرة.",
+                            "All voucher and session data is stored locally in the app database."
+                        ),
                         onBack = { currentDestination = SettingsDestination.MainSettings }
                     )
                 }
                 SettingsDestination.Language -> {
-                    BlankDetailScreen(
-                        title = "اللغة",
-                        message = "اللغة الحالية: العربية (اللغة الافتراضية)",
+                    LanguageSettingsScreen(
+                        language = language,
+                        onLanguageChange = onLanguageChange,
                         onBack = { currentDestination = SettingsDestination.MainSettings }
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LanguageSettingsScreen(
+    language: AppLanguage,
+    onLanguageChange: (AppLanguage) -> Unit,
+    onBack: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        BackToSettingsButton(onClick = onBack)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, WatermarkLineColor, RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = appText("لغة التطبيق", "App language"),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = DeepGreenHeader
+                )
+                Text(
+                    text = appText(
+                        "اختر لغة الواجهة؛ سيتغير اتجاه المحاذاة تلقائياً.",
+                        "Choose the interface language. Text direction and alignment update automatically."
+                    ),
+                    fontSize = 13.sp,
+                    color = AppPalette.Muted
+                )
+                AppLanguage.entries.forEach { option ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onLanguageChange(option) }
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = language == option,
+                            onClick = { onLanguageChange(option) },
+                            colors = RadioButtonDefaults.colors(selectedColor = RichGreenButton)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = option.nativeName,
+                            fontSize = 16.sp,
+                            fontWeight = if (language == option) FontWeight.Bold else FontWeight.Normal,
+                            color = DeepGreenHeader
+                        )
+                    }
                 }
             }
         }
@@ -153,13 +227,16 @@ private fun PortalAppearanceSettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text(
-                    text = "مظهر صفحة الدخول للأجهزة",
+                    text = appText("مظهر صفحة الدخول للأجهزة", "Captive portal appearance"),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = DeepGreenHeader
                 )
                 Text(
-                    text = "غيّر الاسم واللون اللذين يراهما المتصلون عند فتح بوابة تسجيل الدخول.",
+                    text = appText(
+                        "غيّر الاسم واللون اللذين يراهما المتصلون عند فتح بوابة تسجيل الدخول.",
+                        "Choose the name and color clients see on the sign-in page."
+                    ),
                     fontSize = 13.sp,
                     color = AppPalette.Muted,
                     lineHeight = 20.sp
@@ -168,13 +245,18 @@ private fun PortalAppearanceSettingsScreen(
                     value = appearance.name,
                     onValueChange = viewModel::updatePortalName,
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("اسم واجهة تسجيل الدخول") },
-                    placeholder = { Text("مثال: AL-MADDI NET") },
+                    label = { Text(appText("اسم واجهة تسجيل الدخول", "Sign-in page name")) },
+                    placeholder = { Text("Example: AL-MADDI NET") },
                     singleLine = true,
-                    supportingText = { Text("حتى ${com.example.mikrotik.core.captive.PortalAppearanceSettings.MAX_NAME_LENGTH} حرفاً؛ التغيير يُحفظ تلقائياً") }
+                    supportingText = {
+                        Text(appText(
+                            "حتى ${com.example.mikrotik.core.captive.PortalAppearanceSettings.MAX_NAME_LENGTH} حرفاً؛ التغيير يُحفظ تلقائياً",
+                            "Up to ${com.example.mikrotik.core.captive.PortalAppearanceSettings.MAX_NAME_LENGTH} characters; saved automatically"
+                        ))
+                    }
                 )
                 Text(
-                    text = "لون الواجهة",
+                    text = appText("لون الواجهة", "Portal color"),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = DeepGreenHeader
@@ -202,7 +284,11 @@ private fun PortalAppearanceSettingsScreen(
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = theme.displayName,
+                            text = when (theme) {
+                                PortalTheme.GREEN -> appText("أخضر", "Green")
+                                PortalTheme.BLUE -> appText("أزرق", "Blue")
+                                PortalTheme.RED -> appText("أحمر", "Red")
+                            },
                             color = DeepGreenHeader,
                             fontSize = 14.sp,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
@@ -218,6 +304,7 @@ private fun PortalAppearanceSettingsScreen(
 fun MainSettingsList(
     isDarkModeEnabled: Boolean,
     onDarkModeToggle: (Boolean) -> Unit,
+    language: AppLanguage,
     onNavigate: (SettingsDestination) -> Unit
 ) {
     Card(
@@ -232,8 +319,8 @@ fun MainSettingsList(
             // Language
             SettingsItemRow(
                 icon = AppIcons.Globe,
-                title = "اللغة",
-                subtitle = "العربية",
+                title = appText("اللغة", "Language"),
+                subtitle = language.nativeName,
                 onClick = { onNavigate(SettingsDestination.Language) }
             )
             HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
@@ -252,12 +339,12 @@ fun MainSettingsList(
                 ) {
                     Icon(
                         imageVector = AppIcons.Moon,
-                        contentDescription = "Dark Mode",
+                        contentDescription = appText("الوضع الداكن", "Dark mode"),
                         tint = RichGreenButton,
                         modifier = Modifier.size(24.dp)
                     )
                     Text(
-                        text = "الوضع الداكن",
+                        text = appText("الوضع الداكن", "Dark mode"),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = DeepGreenHeader
@@ -274,8 +361,8 @@ fun MainSettingsList(
             // Login Page
             SettingsItemRow(
                 icon = AppIcons.Login,
-                title = "واجهة تسجيل الدخول",
-                subtitle = "تعديل الاسم واللون للأجهزة المتصلة",
+                title = appText("واجهة تسجيل الدخول", "Login portal"),
+                subtitle = appText("تعديل الاسم واللون للأجهزة المتصلة", "Customize name and color for connected clients"),
                 onClick = { onNavigate(SettingsDestination.LoginPage) }
             )
             HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
@@ -283,7 +370,7 @@ fun MainSettingsList(
             // About Us
             SettingsItemRow(
                 icon = AppIcons.Info,
-                title = "نظرة عنا",
+                title = appText("نظرة عنا", "About"),
                 onClick = { onNavigate(SettingsDestination.AboutUs) }
             )
             HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
@@ -291,7 +378,7 @@ fun MainSettingsList(
             // Privacy
             SettingsItemRow(
                 icon = AppIcons.Shield,
-                title = "البيانات والخصوصية",
+                title = appText("البيانات والخصوصية", "Data & privacy"),
                 onClick = { onNavigate(SettingsDestination.Privacy) }
             )
             HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
@@ -299,7 +386,7 @@ fun MainSettingsList(
             // System Info
             SettingsItemRow(
                 icon = AppIcons.SystemMonitor,
-                title = "معلومات النظام",
+                title = appText("معلومات النظام", "System information"),
                 onClick = { onNavigate(SettingsDestination.SystemInfo) }
             )
         }
@@ -316,9 +403,9 @@ private fun BackToSettingsButton(onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text("رجوع إلى الإعدادات")
+            Text(appText("رجوع إلى الإعدادات", "Back to settings"))
             Icon(
-                imageVector = AppIcons.ChevronRight,
+                imageVector = if (LocalAppLanguage.current == AppLanguage.ARABIC) AppIcons.ChevronRight else AppIcons.ChevronLeft,
                 contentDescription = null,
                 tint = DeepGreenHeader,
                 modifier = Modifier.size(18.dp)
@@ -371,7 +458,7 @@ fun SettingsItemRow(
         }
 
         Icon(
-            imageVector = AppIcons.ChevronLeft,
+            imageVector = if (LocalAppLanguage.current == AppLanguage.ARABIC) AppIcons.ChevronLeft else AppIcons.ChevronRight,
             contentDescription = null,
             tint = AppPalette.Muted,
             modifier = Modifier.size(20.dp)
@@ -402,7 +489,7 @@ fun SystemInfoDetailScreen(
                 }
             }
             is DiagnosticsUiState.Error -> {
-                Text(text = "خطأ: ${uiState.message}", color = Color.Red)
+                Text(text = appText("خطأ: ${uiState.message}", "Root diagnostic failed. Check root access and try again."), color = Color.Red)
             }
             is DiagnosticsUiState.Success -> {
                 DiagnosticsReportContent(
@@ -460,7 +547,7 @@ fun AboutUsDetailScreen(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "نظام إدارة الشبكات والروتر المصغر",
+                    text = appText("نظام إدارة الشبكات والروتر المصغر", "A compact router and network management system"),
                     fontSize = 13.sp,
                     color = AppPalette.Muted
                 )
@@ -472,7 +559,7 @@ fun AboutUsDetailScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "نظرة عن المشروع",
+                    text = appText("نظرة عن المشروع", "About this project"),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = DeepGreenHeader,
@@ -483,7 +570,7 @@ fun AboutUsDetailScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "نظام متكامل لإدارة شبكات الهوتسبوت (Hotspot) وتوليد وإنشاء كروت وبطاقات الإنترنت، وتتبع الجلسات النشطة واستهلاك البيانات للمشتركين، بالإضافة إلى التحكم بإعدادات التوجيه والجدار الناري عبر صلاحيات الـ Root.",
+                    text = appText("نظام متكامل لإدارة شبكات الهوتسبوت (Hotspot) وتوليد وإنشاء كروت وبطاقات الإنترنت، وتتبع الجلسات النشطة واستهلاك البيانات للمشتركين، بالإضافة إلى التحكم بإعدادات التوجيه والجدار الناري عبر صلاحيات الـ Root.", "A complete hotspot management system for creating internet vouchers, tracking active sessions and client usage, and managing routing and firewall settings with root access."),
                     fontSize = 14.sp,
                     color = AppPalette.Muted,
                     lineHeight = 22.sp,
@@ -505,7 +592,7 @@ fun AboutUsDetailScreen(
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Text(
-                            text = "تم تطوير هذا النظام بواسطة م/محمد المدي",
+                            text = appText("تم تطوير هذا النظام بواسطة م/محمد المدي", "Developed by Eng. Mohammad Al-Madhi"),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = DeepGreenHeader,
@@ -584,13 +671,13 @@ fun DiagnosticsReportContent(
                 Color(0xFFFFEBEE),
                 Color(0xFFC62828),
                 "Root DENIED",
-                "تم رفض طلب صلاحيات الـ Root من Magisk أو تم إلغاؤه."
+                appText("تم رفض طلب صلاحيات الـ Root من Magisk أو تم إلغاؤه.", "Root access was denied in Magisk or the request was cancelled.")
             )
             is RootStatus.NotAvailable -> Quadruple(
                 Color(0xFFFFF3E0),
                 Color(0xFFE65100),
                 "Root NOT AVAILABLE",
-                report.rootStatusMessage
+                appText(report.rootStatusMessage, "Root access is not available on this device.")
             )
         }
 
@@ -601,7 +688,7 @@ fun DiagnosticsReportContent(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "حالة صلاحيات Root:",
+                    text = appText("حالة صلاحيات Root:", "Root access status:"),
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )
@@ -623,22 +710,22 @@ fun DiagnosticsReportContent(
         }
 
         Text(
-            text = "تفاصيل البيئة والنظام:",
+            text = appText("تفاصيل البيئة والنظام:", "Environment and system details:"),
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
             color = DeepGreenHeader
         )
 
-        InfoItem("قاعدة البيانات المحلية (Room)", dbStatus)
-        InfoItem("نتيجة أمر التحقق 'id'", report.userIdOutput)
-        InfoItem("النواة (Kernel)", report.kernelInfo)
-        InfoItem("وضع SELinux", report.selinuxMode)
-        InfoItem("نسخة iptables", report.iptablesVersion)
-        InfoItem("نسخة iptables-legacy", report.iptablesLegacyVersion)
-        InfoItem("نسخة iptables-nft", report.iptablesNftVersion)
-        InfoItem("نسخة nftables", report.nftablesVersion)
-        InfoItem("توجيه الحزم (IP Forwarding)", report.ipForwardingEnabled)
-        InfoItem("أمر Tethering الداخلي", report.tetheringCmdResponse)
+        InfoItem(appText("قاعدة البيانات المحلية (Room)", "Local database (Room)"), dbStatus)
+        InfoItem(appText("نتيجة أمر التحقق 'id'", "Identity command result (id)"), report.userIdOutput)
+        InfoItem(appText("النواة (Kernel)", "Kernel"), report.kernelInfo)
+        InfoItem(appText("وضع SELinux", "SELinux mode"), report.selinuxMode)
+        InfoItem(appText("نسخة iptables", "iptables version"), report.iptablesVersion)
+        InfoItem(appText("نسخة iptables-legacy", "iptables-legacy version"), report.iptablesLegacyVersion)
+        InfoItem(appText("نسخة iptables-nft", "iptables-nft version"), report.iptablesNftVersion)
+        InfoItem(appText("نسخة nftables", "nftables version"), report.nftablesVersion)
+        InfoItem(appText("توجيه الحزم (IP Forwarding)", "IP forwarding"), report.ipForwardingEnabled)
+        InfoItem(appText("أمر Tethering الداخلي", "Internal tethering command"), report.tetheringCmdResponse)
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -651,14 +738,14 @@ fun DiagnosticsReportContent(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "واجهات الشبكة المتاحة (Interfaces):",
+                    text = appText("واجهات الشبكة المتاحة (Interfaces):", "Available network interfaces:"),
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
                     color = DeepGreenHeader
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 if (report.availableNetworkInterfaces.isEmpty()) {
-                    Text("لم يتم كشف واجهات (يتطلب Root ممنوح).", fontSize = 13.sp)
+                    Text(appText("لم يتم كشف واجهات (يتطلب Root ممنوح).", "No interfaces detected (root access required)."), fontSize = 13.sp)
                 } else {
                     report.availableNetworkInterfaces.forEach { iface ->
                         Text("• $iface", fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = DeepGreenHeader)
@@ -670,7 +757,7 @@ fun DiagnosticsReportContent(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "سجل الأوامر التشخيصية (Raw Logs):",
+            text = appText("سجل الأوامر التشخيصية (Raw Logs):", "Diagnostic command log:"),
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
             color = DeepGreenHeader
@@ -698,7 +785,7 @@ fun DiagnosticsReportContent(
             colors = ButtonDefaults.buttonColors(containerColor = RichGreenButton),
             shape = RoundedCornerShape(10.dp)
         ) {
-            Text("طلب صلاحيات Root وإعادة الفحص")
+            Text(appText("طلب صلاحيات Root وإعادة الفحص", "Request root access and rerun diagnostics"))
         }
     }
 }
