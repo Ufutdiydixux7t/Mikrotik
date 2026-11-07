@@ -129,11 +129,12 @@ class CaptivePortalServer @Inject constructor(
                                 return@post
                             }
 
+                            val clientMac = client.macAddress.trim().lowercase(Locale.ROOT)
                             Log.i(
                                 "CaptivePortalServer",
                                 "Resolved voucher client: ip=${client.ipAddress}, interface=${client.interfaceName}"
                             )
-                            if (blockedMacDao.isMacBlocked(client.macAddress)) {
+                            if (blockedMacDao.isMacBlocked(clientMac)) {
                                 call.respondText(
                                     getHtmlResultPage("الجهاز محظور", "هذا الجهاز محظور من لوحة التحكم. أزل الحظر أولاً ثم أعد المحاولة.", false),
                                     contentType = ContentType.Text.Html
@@ -141,19 +142,23 @@ class CaptivePortalServer @Inject constructor(
                                 return@post
                             }
 
-                            val activated = voucherDao.activateVoucherIfValid(code, client.macAddress, now)
+                            val activated = voucherDao.activateVoucherIfValid(code, clientMac, now)
                             val voucher = voucherDao.getVoucherByCode(code)
 
                             if (activated > 0 && voucher != null) {
-                                val previousSession = activeSessionDao.getSessionByMac(client.macAddress)
-                                if (previousSession != null && previousSession.ipAddress != client.ipAddress &&
-                                    !iptablesManager.unblockClientIpAddress(previousSession.ipAddress)
-                                ) {
-                                    Log.w(
-                                        "CaptivePortalServer",
-                                        "Could not clear the expired client's previous IP block (${previousSession.ipAddress})"
-                                    )
-                                }
+                                val previousSessions = activeSessionDao.getSessionsByMac(clientMac)
+                                previousSessions
+                                    .map { it.ipAddress }
+                                    .distinct()
+                                    .filter { it != client.ipAddress }
+                                    .forEach { previousIp ->
+                                        if (!iptablesManager.unblockClientIpAddress(previousIp)) {
+                                            Log.w(
+                                                "CaptivePortalServer",
+                                                "Could not clear the expired client's previous IP block ($previousIp)"
+                                            )
+                                        }
+                                    }
                                 if (!iptablesManager.unblockClientIpAddress(client.ipAddress)) {
                                     Log.e(
                                         "CaptivePortalServer",
@@ -165,26 +170,28 @@ class CaptivePortalServer @Inject constructor(
                                     )
                                     return@post
                                 }
-                                if (!iptablesManager.unblockMacAddress(client.macAddress)) {
+                                if (!iptablesManager.unblockMacAddress(clientMac)) {
                                     Log.w("CaptivePortalServer", "Could not clear a stale temporary block before voucher login")
                                 }
-                                if (!iptablesManager.resetDeviceUsageCounters(client.macAddress, client.ipAddress)) {
+                                if (!iptablesManager.resetDeviceUsageCounters(clientMac, client.ipAddress)) {
                                     Log.w("CaptivePortalServer", "Could not reset traffic counters for a new voucher")
                                 }
+                                // Normalize the database identity and remove legacy case-variant duplicates.
+                                activeSessionDao.deleteSessionsByMac(clientMac)
                                 activeSessionDao.insertOrUpdateSession(
                                     ActiveSessionEntity(
-                                        macAddress = client.macAddress,
+                                        macAddress = clientMac,
                                         ipAddress = client.ipAddress,
                                         voucherCode = code
                                     )
                                 )
-                                val isAllowed = iptablesManager.authorizeMacAddress(client.macAddress)
+                                val isAllowed = iptablesManager.authorizeMacAddress(clientMac)
                                 if (!isAllowed) {
                                     Log.e(
                                         "CaptivePortalServer",
                                         "Could not apply forwarding allow-rules for client ip=${client.ipAddress}"
                                     )
-                                    activeSessionDao.deactivateSession(client.macAddress)
+                                    activeSessionDao.deactivateSession(clientMac)
                                     call.respondText(
                                         getHtmlResultPage("تعذر فتح الاتصال", "تم التحقق من البطاقة، لكن تعذر تطبيق قاعدة السماح على الهاتف. أعد المحاولة أو راجع التشخيص.", false),
                                         contentType = ContentType.Text.Html
@@ -197,9 +204,9 @@ class CaptivePortalServer @Inject constructor(
                                 )
                                 val currentVoucher = voucherDao.getVoucherByCode(code)
                                 if (currentVoucher == null || currentVoucher.isBlocked) {
-                                    iptablesManager.revokeMacAddress(client.macAddress)
-                                    activeSessionDao.deactivateSession(client.macAddress)
-                                    activeSessionDao.deleteSession(client.macAddress)
+                                    iptablesManager.revokeMacAddress(clientMac)
+                                    activeSessionDao.deactivateSession(clientMac)
+                                    activeSessionDao.deleteSession(clientMac)
                                     call.respondText(
                                         getHtmlResultPage("البطاقة لم تعد متاحة", "تم حذف البطاقة أو إيقافها. أدخل بطاقة أخرى للاتصال.", false),
                                         contentType = ContentType.Text.Html
@@ -218,7 +225,7 @@ class CaptivePortalServer @Inject constructor(
                                 val reason = when {
                                     voucher == null -> "رمز البطاقة غير موجود."
                                     voucher.isBlocked -> "هذه البطاقة محظورة."
-                                    voucher.boundMacAddress != null && voucher.boundMacAddress != client.macAddress -> "هذه البطاقة مستخدمة على جهاز آخر."
+                                    voucher.boundMacAddress != null && !voucher.boundMacAddress.equals(clientMac, ignoreCase = true) -> "هذه البطاقة مستخدمة على جهاز آخر."
                                     voucher.bytesUsedSoFar >= voucher.dataLimitBytes -> "انتهى حجم البيانات المسموح لهذه البطاقة."
                                     voucher.firstUsedAt != null && now >= voucher.firstUsedAt + voucher.durationMinutes * 60_000L ->
                                         "انتهت مدة صلاحية البطاقة."

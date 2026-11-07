@@ -13,12 +13,15 @@ interface BlockedMacDao {
     @Query("SELECT * FROM blocked_macs ORDER BY blockedAt DESC")
     fun getBlockedMacsFlow(): Flow<List<BlockedMacEntity>>
 
-    @Query("SELECT EXISTS(SELECT 1 FROM blocked_macs WHERE macAddress = :macAddress)")
+    @Query("SELECT EXISTS(SELECT 1 FROM blocked_macs WHERE macAddress COLLATE NOCASE = :macAddress)")
     suspend fun isMacBlocked(macAddress: String): Boolean
+
+    @Query("SELECT * FROM blocked_macs ORDER BY blockedAt DESC")
+    suspend fun getBlockedMacsSnapshot(): List<BlockedMacEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun blockMac(blockedMac: BlockedMacEntity)
 
-    @Query("DELETE FROM blocked_macs WHERE macAddress = :macAddress")
+    @Query("DELETE FROM blocked_macs WHERE macAddress COLLATE NOCASE = :macAddress")
     suspend fun unblockMac(macAddress: String)
 }

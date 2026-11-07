@@ -271,7 +271,13 @@ class IptablesManager @Inject constructor(
             return rootShellManager.executeCommand("iptables -I MM_CAPTIVE_R 1 -d $ipAddress -j DROP").isSuccess
         }
         if (!block && exists) {
-            return rootShellManager.executeCommand("iptables -D MM_CAPTIVE_R -d $ipAddress -j DROP").isSuccess
+            repeat(MAX_DUPLICATE_RULE_REMOVALS) {
+                if (!rootShellManager.executeCommand(rule).isSuccess) return true
+                if (!rootShellManager.executeCommand("iptables -D MM_CAPTIVE_R -d $ipAddress -j DROP").isSuccess) {
+                    return false
+                }
+            }
+            return !rootShellManager.executeCommand(rule).isSuccess
         }
         return true
     }
@@ -295,8 +301,18 @@ class IptablesManager @Inject constructor(
             return rootShellManager.executeCommand("$binary -I $chain 1 -m mac --mac-source $mac -j $target").isSuccess
         }
         if (!add && exists) {
-            return rootShellManager.executeCommand("$binary -D $chain -m mac --mac-source $mac -j $target").isSuccess
+            repeat(MAX_DUPLICATE_RULE_REMOVALS) {
+                if (!rootShellManager.executeCommand(rule).isSuccess) return true
+                if (!rootShellManager.executeCommand("$binary -D $chain -m mac --mac-source $mac -j $target").isSuccess) {
+                    return false
+                }
+            }
+            return !rootShellManager.executeCommand(rule).isSuccess
         }
         return true
+    }
+
+    private companion object {
+        const val MAX_DUPLICATE_RULE_REMOVALS = 64
     }
 }

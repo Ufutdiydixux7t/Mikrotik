@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.mikrotik.core.hotspot.HotspotController
@@ -36,6 +37,7 @@ class BandwidthTrackerService : Service() {
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var trackingJob: Job? = null
+    private var lastBlockedEnforcementAt = 0L
     private val usagePreferences by lazy { getSharedPreferences("voucher_usage_counters", MODE_PRIVATE) }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -86,17 +88,25 @@ class BandwidthTrackerService : Service() {
     }
 
     private suspend fun trackBandwidthAndEnforceQuotas() {
+        enforceBlockedDevicesIfDue()
         val sessions = activeSessionDao.getActiveSessionsSnapshot()
+            .distinctBy { it.macAddress.lowercase() }
         for (session in sessions) {
             val mac = session.macAddress
             if (blockedMacDao.isMacBlocked(mac)) {
-                val ipBlocked = iptablesManager.blockClientIpAddress(session.ipAddress)
-                val accessRevoked = iptablesManager.revokeMacAddress(mac)
+                val matchingSessions = activeSessionDao.getSessionsByMac(mac)
                 val macBlocked = iptablesManager.blockMacAddress(mac)
+                val ipBlocked = matchingSessions.map { iptablesManager.blockClientIpAddress(it.ipAddress) }.all { it }
+                val accessRevoked = iptablesManager.revokeMacAddress(mac)
                 if (ipBlocked && accessRevoked && macBlocked) {
-                    voucherDao.blockVoucherForDeletion(session.voucherCode)
-                    voucherDao.deleteVoucher(session.voucherCode)
-                    activeSessionDao.deactivateSession(mac)
+                    val voucherCodes = (
+                        matchingSessions.map { it.voucherCode } + voucherDao.getVouchersByMac(mac).map { it.code }
+                        ).distinct()
+                    voucherCodes.forEach {
+                        voucherDao.blockVoucherForDeletion(it)
+                        voucherDao.deleteVoucher(it)
+                    }
+                    activeSessionDao.deactivateSessionsByMac(mac)
                     hotspotController.requestClientReauthentication(mac)
                 } else {
                     Log.e(
@@ -156,6 +166,38 @@ class BandwidthTrackerService : Service() {
         }
     }
 
+    private suspend fun enforceBlockedDevicesIfDue() {
+        val now = SystemClock.elapsedRealtime()
+        if (lastBlockedEnforcementAt != 0L && now - lastBlockedEnforcementAt < BLOCKED_ENFORCEMENT_INTERVAL_MS) return
+        lastBlockedEnforcementAt = now
+
+        val blockedDevices = blockedMacDao.getBlockedMacsSnapshot()
+            .distinctBy { it.macAddress.lowercase() }
+        for (blocked in blockedDevices) {
+            val mac = blocked.macAddress.trim().lowercase()
+            val sessions = activeSessionDao.getSessionsByMac(mac)
+            val macBlocked = iptablesManager.blockMacAddress(mac)
+            val ipsBlocked = sessions.map { iptablesManager.blockClientIpAddress(it.ipAddress) }.all { it }
+            val accessRevoked = iptablesManager.revokeMacAddress(mac)
+            if (macBlocked && ipsBlocked && accessRevoked) {
+                val voucherCodes = (
+                    sessions.map { it.voucherCode } + voucherDao.getVouchersByMac(mac).map { it.code }
+                    ).distinct()
+                voucherCodes.forEach {
+                    voucherDao.blockVoucherForDeletion(it)
+                    voucherDao.deleteVoucher(it)
+                }
+                activeSessionDao.deactivateSessionsByMac(mac)
+            } else {
+                Log.e(
+                    "BandwidthTracker",
+                    "Could not re-apply blocked-device firewall rules for $mac " +
+                        "(macBlocked=$macBlocked, ipsBlocked=$ipsBlocked, accessRevoked=$accessRevoked)"
+                )
+            }
+        }
+    }
+
     private suspend fun disconnectExpiredSession(
         session: com.example.mikrotik.data.db.entity.ActiveSessionEntity,
         reason: String
@@ -185,5 +227,9 @@ class BandwidthTrackerService : Service() {
         trackingJob?.cancel()
         serviceScope.cancel()
         super.onDestroy()
+    }
+
+    private companion object {
+        const val BLOCKED_ENFORCEMENT_INTERVAL_MS = 5_000L
     }
 }

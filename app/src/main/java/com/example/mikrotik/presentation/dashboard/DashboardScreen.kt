@@ -31,6 +31,7 @@ private val DeepGreenHeader get() = AppPalette.TextNavy
 private val RichGreenButton get() = AppPalette.Teal
 private val SeamlessCardBg get() = AppPalette.Card
 private val WatermarkLineColor get() = AppPalette.Border
+private fun String.canonicalMac(): String = trim().lowercase()
 
 @Composable
 fun DashboardScreen(
@@ -47,7 +48,13 @@ private fun DashboardContent(viewModel: DashboardViewModel) {
     val activeSessions by viewModel.activeSessions.collectAsState()
     val blockedMacs by viewModel.blockedMacs.collectAsState()
     val deviceUsage by viewModel.deviceUsage.collectAsState()
+    val blockedVoucherCodes by viewModel.blockedVoucherCodes.collectAsState()
     val actionMessage by viewModel.actionMessage.collectAsState()
+    val uniqueBlockedMacs = blockedMacs.distinctBy { it.macAddress.canonicalMac() }
+    val blockedMacKeys = uniqueBlockedMacs.mapTo(mutableSetOf()) { it.macAddress.canonicalMac() }
+    val visibleActiveSessions = activeSessions
+        .distinctBy { it.macAddress.canonicalMac() }
+        .filterNot { it.macAddress.canonicalMac() in blockedMacKeys }
 
     if (actionMessage != null) {
         AlertDialog(
@@ -96,7 +103,7 @@ private fun DashboardContent(viewModel: DashboardViewModel) {
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = "${activeSessions.size}",
+                            text = "${visibleActiveSessions.size}",
                             fontSize = 28.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = RichGreenButton
@@ -117,7 +124,7 @@ private fun DashboardContent(viewModel: DashboardViewModel) {
 
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = "${blockedMacs.size}",
+                            text = "${uniqueBlockedMacs.size}",
                             fontSize = 28.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color(0xFFC62828)
@@ -139,7 +146,7 @@ private fun DashboardContent(viewModel: DashboardViewModel) {
                 color = DeepGreenHeader
             )
 
-            if (activeSessions.isEmpty()) {
+            if (visibleActiveSessions.isEmpty()) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
@@ -156,7 +163,7 @@ private fun DashboardContent(viewModel: DashboardViewModel) {
                     )
                 }
             } else {
-                activeSessions.forEach { session ->
+                visibleActiveSessions.forEach { session ->
                     DeviceUsageCard(
                         session = session,
                         usage = deviceUsage[session.macAddress],
@@ -174,7 +181,7 @@ private fun DashboardContent(viewModel: DashboardViewModel) {
                 color = DeepGreenHeader
             )
 
-            if (blockedMacs.isEmpty()) {
+            if (uniqueBlockedMacs.isEmpty()) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
@@ -191,10 +198,11 @@ private fun DashboardContent(viewModel: DashboardViewModel) {
                     )
                 }
             } else {
-                blockedMacs.forEach { blockedMac ->
+                uniqueBlockedMacs.forEach { blockedMac ->
                     BlockedDeviceCard(
                         blockedMac = blockedMac,
                         displayName = viewModel.getDeviceName(blockedMac.macAddress, appText("جهاز ${blockedMac.macAddress.takeLast(5)}", "Device ${blockedMac.macAddress.takeLast(5)}")),
+                        voucherCode = blockedVoucherCodes[blockedMac.macAddress.canonicalMac()],
                         onRename = viewModel::saveDeviceName,
                         onUnblock = { viewModel.unblockDevice(blockedMac.macAddress) }
                     )
@@ -431,26 +439,26 @@ private fun DeviceUsageCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, WatermarkLineColor, RoundedCornerShape(22.dp)),
-        shape = RoundedCornerShape(22.dp),
+            .border(1.dp, WatermarkLineColor, RoundedCornerShape(18.dp)),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
-                        .size(70.dp)
-                        .clip(RoundedCornerShape(18.dp))
+                        .size(52.dp)
+                        .clip(RoundedCornerShape(14.dp))
                         .background(AppPalette.Mint),
                     contentAlignment = Alignment.Center
                 ) {
@@ -458,7 +466,7 @@ private fun DeviceUsageCard(
                         imageVector = AppIcons.SystemMonitor,
                         contentDescription = appText("جهاز متصل", "Connected device"),
                         tint = RichGreenButton,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(27.dp)
                     )
                 }
 
@@ -469,17 +477,17 @@ private fun DeviceUsageCard(
                     Text(
                         text = deviceName,
                         modifier = Modifier.fillMaxWidth(),
-                        fontSize = 21.sp,
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
                         color = DeepGreenHeader,
                         textAlign = TextAlign.Start
                     )
-                    Spacer(modifier = Modifier.height(5.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "IP: ${session.ipAddress}",
                         modifier = Modifier.fillMaxWidth(),
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 13.sp,
+                        fontSize = 11.sp,
                         color = AppPalette.Muted,
                         textAlign = TextAlign.Start
                     )
@@ -488,9 +496,19 @@ private fun DeviceUsageCard(
                         text = "MAC: ${session.macAddress}",
                         modifier = Modifier.fillMaxWidth(),
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         color = AppPalette.Muted,
                         textAlign = TextAlign.Start
+                    )
+                    Text(
+                        text = appText("الكرت المستخدم: ${session.voucherCode}", "Voucher used: ${session.voucherCode}"),
+                        modifier = Modifier.fillMaxWidth(),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = RichGreenButton,
+                        textAlign = TextAlign.Start,
+                        maxLines = 1
                     )
                 }
             }
@@ -509,14 +527,14 @@ private fun DeviceUsageCard(
                     Box(contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(
                             progress = usageFraction,
-                            modifier = Modifier.size(96.dp),
+                            modifier = Modifier.size(70.dp),
                             color = usageColor,
                             trackColor = AppPalette.Mint,
-                            strokeWidth = 8.dp
+                            strokeWidth = 6.dp
                         )
                         Text(
                             text = if (quotaBytes > 0L) "${(usageFraction * 100).toInt()}%" else "—",
-                            fontSize = 20.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = DeepGreenHeader
                         )
@@ -543,31 +561,31 @@ private fun DeviceUsageCard(
                             editedName = if (deviceName == fallbackName) "" else deviceName
                             showRenameDialog = true
                         },
-                        contentPadding = PaddingValues(horizontal = 5.dp, vertical = 7.dp)
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                     ) {
                         Icon(
                             imageVector = AppIcons.Edit,
                             contentDescription = appText("تعديل الاسم", "Rename device"),
-                            modifier = Modifier.size(17.dp),
+                            modifier = Modifier.size(15.dp),
                             tint = RichGreenButton
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(appText("الاسم", "Name"), fontSize = 12.sp, color = RichGreenButton)
+                        Text(appText("الاسم", "Name"), fontSize = 11.sp, color = RichGreenButton)
                     }
 
                     OutlinedButton(
                         onClick = { showBlockDialog = true },
                         shape = RoundedCornerShape(18.dp),
-                        contentPadding = PaddingValues(horizontal = 13.dp, vertical = 7.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC62828))
                     ) {
                         Icon(
                             imageVector = AppIcons.Block,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(15.dp)
                         )
                         Spacer(modifier = Modifier.width(5.dp))
-                        Text(appText("حظر", "Block"), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text(appText("حظر", "Block"), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -634,6 +652,7 @@ private fun formatUsageBytes(bytes: Long): String = when {
 private fun BlockedDeviceCard(
     blockedMac: BlockedMacEntity,
     displayName: String,
+    voucherCode: String?,
     onRename: (String, String) -> Unit,
     onUnblock: () -> Unit
 ) {
@@ -643,26 +662,26 @@ private fun BlockedDeviceCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, Color(0xFFFFCDD2), RoundedCornerShape(22.dp)),
-        shape = RoundedCornerShape(22.dp),
+            .border(1.dp, Color(0xFFFFCDD2), RoundedCornerShape(18.dp)),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(horizontal = 13.dp, vertical = 11.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
-                        .size(64.dp)
-                        .clip(RoundedCornerShape(17.dp))
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(13.dp))
                         .background(Color(0xFFFFEBEE)),
                     contentAlignment = Alignment.Center
                 ) {
@@ -670,7 +689,7 @@ private fun BlockedDeviceCard(
                         imageVector = AppIcons.SystemMonitor,
                         contentDescription = appText("جهاز محظور", "Blocked device"),
                         tint = Color(0xFFC62828),
-                        modifier = Modifier.size(34.dp)
+                        modifier = Modifier.size(25.dp)
                     )
                 }
                 Column(
@@ -680,31 +699,42 @@ private fun BlockedDeviceCard(
                     Text(
                         text = displayName,
                         modifier = Modifier.fillMaxWidth(),
-                        fontSize = 19.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = DeepGreenHeader,
                         textAlign = TextAlign.Start
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "MAC: ${blockedMac.macAddress}",
                         modifier = Modifier.fillMaxWidth(),
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         color = AppPalette.Muted,
                         textAlign = TextAlign.Start
                     )
+                    if (!voucherCode.isNullOrBlank()) {
+                        Text(
+                            text = appText("الكرت المستخدم: $voucherCode", "Voucher used: $voucherCode"),
+                            modifier = Modifier.fillMaxWidth(),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = RichGreenButton,
+                            textAlign = TextAlign.Start,
+                            maxLines = 1
+                        )
+                    }
                     Text(
                         text = blockedMac.reason,
                         modifier = Modifier.fillMaxWidth(),
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         color = Color(0xFFC62828),
                         textAlign = TextAlign.Start
                     )
                 }
             }
 
-            HorizontalDivider(color = Color(0xFFFFCDD2), thickness = 0.7.dp)
+            HorizontalDivider(color = Color(0xFFFFCDD2), thickness = 0.5.dp)
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -732,30 +762,30 @@ private fun BlockedDeviceCard(
                             editedName = displayName
                             showRenameDialog = true
                         },
-                        contentPadding = PaddingValues(horizontal = 5.dp, vertical = 7.dp)
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                     ) {
                         Icon(
                             imageVector = AppIcons.Edit,
                             contentDescription = appText("تعديل الاسم", "Rename device"),
-                            modifier = Modifier.size(17.dp),
+                            modifier = Modifier.size(15.dp),
                             tint = RichGreenButton
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(appText("الاسم", "Name"), fontSize = 12.sp, color = RichGreenButton)
+                        Text(appText("الاسم", "Name"), fontSize = 11.sp, color = RichGreenButton)
                     }
                     Button(
                         onClick = onUnblock,
                         colors = ButtonDefaults.buttonColors(containerColor = RichGreenButton),
                         shape = RoundedCornerShape(18.dp),
-                        contentPadding = PaddingValues(horizontal = 15.dp, vertical = 8.dp)
+                        contentPadding = PaddingValues(horizontal = 11.dp, vertical = 5.dp)
                     ) {
                         Icon(
                             imageVector = AppIcons.Login,
                             contentDescription = null,
-                            modifier = Modifier.size(17.dp)
+                            modifier = Modifier.size(15.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(appText("رفع الحظر", "Unblock"), fontSize = 13.sp, color = Color.White)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(appText("رفع الحظر", "Unblock"), fontSize = 11.sp, color = Color.White)
                     }
                 }
             }
