@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.mikrotik.presentation.ui.components.AppBackground
+import com.example.mikrotik.presentation.ui.localization.appText
 import com.example.mikrotik.presentation.ui.theme.AppIcons
 import com.example.mikrotik.ui.theme.AppPalette
 
@@ -42,6 +43,19 @@ fun LoginScreen(
     var isSuccess by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
+    val copyToastText = appText("تم نسخ الرابط بنجاح!", "Link copied successfully")
+    val emptyVoucherMessage = appText("يرجى إدخال كود الكرت.", "Enter a voucher code.")
+    val successMessage = appText("تم الاتصال بنجاح!\nالبيانات المتبقية: 4.8 GB | المدة: 29 يوم", "Connected successfully!\nData remaining: 4.8 GB | Time remaining: 29 days")
+    val invalidVoucherMessage = appText("كود البطاقة غير صالح أو منتهي الصلاحية.", "Invalid or expired voucher code.")
+    val localizedHealthResult = healthResult?.let { result ->
+        when {
+            result.startsWith("جاري فحص مسار الصحة") -> appText(result, "Testing the /health endpoint…")
+            result.startsWith("السيرفر يعمل بنجاح") -> appText(result, "Server is healthy (HTTP 200 OK - /health)")
+            result.startsWith("استجاب السيرفر برمز:") -> appText(result, "Server responded with code: ${result.substringAfterLast(':').trim()}")
+            result.startsWith("فشل الاتصال:") -> appText(result, "Connection failed while testing server health.")
+            else -> appText(result, "Health check completed.")
+        }
+    }
 
     AppBackground {
         Column(
@@ -88,13 +102,13 @@ fun LoginScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "حالة السيرفر: ${if (isServerRunning) "يعمل (Running)" else "متوقف"}",
+                                text = appText("حالة السيرفر: ${if (isServerRunning) "يعمل" else "متوقف"}", "Server: ${if (isServerRunning) "Running" else "Stopped"}"),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (isServerRunning) Color(0xFF2E7D32) else Color(0xFFC62828)
                             )
                             Text(
-                                text = "المنفذ: $serverPort",
+                                text = appText("المنفذ: $serverPort", "Port: $serverPort"),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = DeepGreenHeader
@@ -102,14 +116,14 @@ fun LoginScreen(
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "IP الهوتسبوت: $serverIp",
+                            text = appText("IP الهوتسبوت: $serverIp", "Hotspot IP: $serverIp"),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = DeepGreenHeader
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "الرابط: $serverUrl",
+                            text = appText("الرابط: $serverUrl", "URL: $serverUrl"),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = RichGreenButton
@@ -122,13 +136,13 @@ fun LoginScreen(
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                 val clip = ClipData.newPlainText("Captive Portal URL", serverUrl)
                                 clipboard.setPrimaryClip(clip)
-                                Toast.makeText(context, "تم نسخ الرابط بنجاح!", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, copyToastText, Toast.LENGTH_SHORT).show()
                             },
                             modifier = Modifier.fillMaxWidth().height(36.dp),
                             shape = RoundedCornerShape(8.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = RichGreenButton)
                         ) {
-                            Text(text = "نسخ الرابط", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(text = appText("نسخ الرابط", "Copy link"), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -157,14 +171,14 @@ fun LoginScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "تسجيل الدخول",
+                        text = appText("تسجيل الدخول", "Sign in"),
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = DeepGreenHeader
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "أدخل البطاقة للاتصال بالإنترنت",
+                        text = appText("أدخل البطاقة للاتصال بالإنترنت", "Enter a voucher to connect to the internet"),
                         fontSize = 13.sp,
                         color = AppPalette.Muted,
                         textAlign = TextAlign.Center
@@ -176,7 +190,7 @@ fun LoginScreen(
                         onValueChange = { voucherCode = it },
                         placeholder = {
                             Text(
-                                text = "أدخل الكرت هنا",
+                                text = appText("أدخل الكرت هنا", "Enter voucher code"),
                                 modifier = Modifier.fillMaxWidth(),
                                 textAlign = TextAlign.Center,
                                 color = AppPalette.Muted
@@ -205,13 +219,13 @@ fun LoginScreen(
                     Button(
                         onClick = {
                             if (voucherCode.isBlank()) {
-                                loginResult = "يرجى إدخال كود الكرت."
+                                loginResult = emptyVoucherMessage
                                 isSuccess = false
                             } else if (voucherCode == "12345" || voucherCode.startsWith("MDI")) {
-                                loginResult = "تم الاتصال بنجاح!\nالبيانات المتبقية: 4.8 GB | المدة: 29 يوم"
+                                loginResult = successMessage
                                 isSuccess = true
                             } else {
-                                loginResult = "كود البطاقة غير صالح أو منتهي الصلاحية."
+                                loginResult = invalidVoucherMessage
                                 isSuccess = false
                             }
                         },
@@ -222,7 +236,7 @@ fun LoginScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = RichGreenButton)
                     ) {
                         Text(
-                            text = "اتصال",
+                            text = appText("اتصال", "Connect"),
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -252,7 +266,7 @@ fun LoginScreen(
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = RichGreenButton)
                     ) {
                         Text(
-                            text = "اختبار صحة السيرفر (/health)",
+                            text = appText("اختبار صحة السيرفر (/health)", "Test server health (/health)"),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -261,7 +275,7 @@ fun LoginScreen(
                     if (healthResult != null) {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = healthResult ?: "",
+                            text = localizedHealthResult ?: "",
                             color = DeepGreenHeader,
                             fontSize = 11.sp,
                             textAlign = TextAlign.Center

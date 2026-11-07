@@ -24,6 +24,7 @@ import com.example.mikrotik.domain.model.ConnectedDevice
 import com.example.mikrotik.domain.model.HotspotState
 import com.example.mikrotik.presentation.ui.components.AppTopBar
 import com.example.mikrotik.presentation.ui.components.AppWaveDecoration
+import com.example.mikrotik.presentation.ui.localization.appText
 import com.example.mikrotik.presentation.ui.theme.AppIcons
 import com.example.mikrotik.ui.theme.AppPalette
 
@@ -53,11 +54,11 @@ fun HomeScreen(
     if (errorMessage != null) {
         AlertDialog(
             onDismissRequest = { viewModel.clearError() },
-            title = { Text("معلومات تشخيص الخطأ (Root Error)") },
-            text = { Text(errorMessage ?: "") },
+            title = { Text(appText("معلومات تشخيص الخطأ (Root Error)", "Root error details")) },
+            text = { Text(appText(errorMessage ?: "", "A root command failed. Open System information for diagnostics.")) },
             confirmButton = {
                 Button(onClick = { viewModel.clearError() }) {
-                    Text("حسناً")
+                    Text(appText("حسناً", "OK"))
                 }
             }
         )
@@ -66,7 +67,7 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             AppTopBar(
-                title = "الرئيسية",
+                title = appText("الرئيسية", "Home"),
                 subtitle = "AL RABDI NET",
                 startIcon = AppIcons.Home,
                 endIcon = AppIcons.Menu,
@@ -92,7 +93,7 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 StatusCard(
-                    title = "البيانات",
+                    title = appText("البيانات", "Mobile data"),
                     isActive = isDataActive,
                     icon = AppIcons.MobileDataArrows,
                     onClick = { viewModel.toggleMobileData() },
@@ -157,21 +158,25 @@ fun TotalUsageCard(totalUsage: String) {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "استهلاك الإنترنت الكلي",
+                    text = appText("استهلاك الإنترنت الكلي", "Total internet usage"),
                     color = DeepGreenHeader,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = totalUsage,
+                    text = when (totalUsage) {
+                        "جارٍ القياس" -> appText("جارٍ القياس", "Measuring…")
+                        "غير متاح" -> appText("غير متاح", "Not available")
+                        else -> totalUsage
+                    },
                     color = DeepGreenHeader,
                     fontSize = 34.sp,
                     fontWeight = FontWeight.ExtraBold
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Wi-Fi + بيانات الهاتف • منذ آخر إعادة تشغيل",
+                    text = appText("Wi-Fi + بيانات الهاتف • منذ آخر إعادة تشغيل", "Wi-Fi + mobile data • since last restart"),
                     color = DeepGreenHeader.copy(alpha = 0.72f),
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center
@@ -229,7 +234,7 @@ fun StatusCard(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = if (isActive) "مفعل" else "متوقف",
+                        text = if (isActive) appText("مفعل", "On") else appText("متوقف", "Off"),
                         color = if (isActive) PillGreenDot else AppPalette.Muted,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
@@ -268,13 +273,13 @@ fun ConnectedDevicesSection(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = AppIcons.ConnectedDevices,
-                    contentDescription = "الأجهزة المتصلة",
+                    contentDescription = appText("الأجهزة المتصلة", "Connected devices"),
                     tint = RichGreenButton,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "الأجهزة المتصلة",
+                    text = appText("الأجهزة المتصلة", "Connected devices"),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = DeepGreenHeader
@@ -288,7 +293,7 @@ fun ConnectedDevicesSection(
                 )
                 Icon(
                     imageVector = if (isExpanded) AppIcons.ChevronRight else AppIcons.ChevronLeft,
-                    contentDescription = if (isExpanded) "طي القائمة" else "عرض الأجهزة",
+                    contentDescription = if (isExpanded) appText("طي القائمة", "Collapse list") else appText("عرض الأجهزة", "Show devices"),
                     tint = DeepGreenHeader,
                     modifier = Modifier.size(20.dp)
                 )
@@ -298,28 +303,28 @@ fun ConnectedDevicesSection(
         if (isExpanded) {
             when {
                 hotspotState is HotspotState.Disabled -> Text(
-                    text = "نقطة الاتصال متوقفة؛ شغّلها لعرض الأجهزة المتصلة فعلياً.",
+                    text = appText("نقطة الاتصال متوقفة؛ شغّلها لعرض الأجهزة المتصلة فعلياً.", "Hotspot is off. Turn it on to see connected devices."),
                     fontSize = 13.sp,
                     color = AppPalette.Muted,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                 )
                 hotspotState is HotspotState.Enabling -> Text(
-                    text = "جارٍ تحديث حالة نقطة الاتصال والأجهزة…",
+                    text = appText("جارٍ تحديث حالة نقطة الاتصال والأجهزة…", "Refreshing hotspot and device status…"),
                     fontSize = 13.sp,
                     color = AppPalette.Muted,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                 )
                 hotspotState is HotspotState.Error -> Text(
-                    text = hotspotState.message,
+                    text = appText(hotspotState.message, "Could not read hotspot status. Check root access and hotspot permissions."),
                     fontSize = 13.sp,
                     color = AppPalette.Muted,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                 )
                 devices.isEmpty() -> Text(
-                    text = "لا توجد أجهزة متصلة بالـ Hotspot حالياً.",
+                    text = appText("لا توجد أجهزة متصلة بالـ Hotspot حالياً.", "No devices are connected to the hotspot."),
                     fontSize = 13.sp,
                     color = AppPalette.Muted,
                     textAlign = TextAlign.Center,
@@ -350,17 +355,17 @@ fun DeviceItemRow(device: ConnectedDevice) {
         ) {
             Icon(
                 imageVector = AppIcons.Smartphone,
-                contentDescription = "هاتف متصل",
+                contentDescription = appText("هاتف متصل", "Connected device"),
                 tint = DeepGreenHeader,
                 modifier = Modifier.size(34.dp)
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column(
                 modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.End
+                    horizontalAlignment = Alignment.End
             ) {
                 Text(
-                    text = device.deviceName ?: "جهاز متصل",
+                    text = device.deviceName ?: appText("جهاز متصل", "Connected device"),
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
                     color = DeepGreenHeader
@@ -383,7 +388,7 @@ fun DeviceItemRow(device: ConnectedDevice) {
                             .background(PillGreenDot)
                     )
                     Text(
-                        text = if (device.connectionState.equals("CONNECTED", ignoreCase = true)) "متصل" else device.connectionState,
+                        text = if (device.connectionState.equals("CONNECTED", ignoreCase = true)) appText("متصل", "Connected") else device.connectionState,
                         fontSize = 12.sp,
                         color = PillGreenDot,
                         fontWeight = FontWeight.SemiBold

@@ -74,7 +74,7 @@ class DashboardViewModel @Inject constructor(
         val sessionFallbackBytes = session.bytesDownloaded + session.bytesUploaded
         val savedName = deviceNamePreferences.getString(nameKey(session.macAddress), null)
             ?.trim()?.takeIf { it.isNotEmpty() }
-        val detectedName = savedName ?: "جهاز ${session.macAddress.takeLast(5)}"
+        val detectedName = savedName.orEmpty()
         return DeviceUsageInfo(
             bytesUsed = maxOf(liveCounterBytes ?: 0L, storedVoucherBytes, sessionFallbackBytes).coerceAtLeast(0L),
             quotaBytes = voucher?.dataLimitBytes?.coerceAtLeast(0L) ?: 0L,
@@ -95,10 +95,13 @@ class DashboardViewModel @Inject constructor(
 
     private fun nameKey(macAddress: String) = "name_${macAddress.lowercase().replace(':', '_')}"
 
-    fun getDeviceName(macAddress: String): String =
+    fun getDeviceName(
+        macAddress: String,
+        fallbackName: String = "جهاز ${macAddress.takeLast(5)}"
+    ): String =
         deviceNamePreferences.getString(nameKey(macAddress), null)
             ?.trim()?.takeIf { it.isNotEmpty() }
-            ?: "جهاز ${macAddress.takeLast(5)}"
+            ?: fallbackName
 
     fun clearActionMessage() {
         _actionMessage.value = null

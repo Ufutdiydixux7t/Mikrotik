@@ -16,6 +16,8 @@ import com.example.mikrotik.presentation.dashboard.DashboardViewModel
 import com.example.mikrotik.presentation.diagnostics.DiagnosticsViewModel
 import com.example.mikrotik.presentation.home.HomeViewModel
 import com.example.mikrotik.presentation.main.MainScreen
+import com.example.mikrotik.presentation.ui.localization.AppLanguage
+import com.example.mikrotik.presentation.ui.localization.LocalAppLanguage
 import com.example.mikrotik.presentation.voucher.VoucherViewModel
 import com.example.mikrotik.ui.theme.MikrotikTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -42,13 +44,21 @@ class MainActivity : ComponentActivity() {
             val darkMode = remember {
                 mutableStateOf(preferences.getBoolean("dark_mode_enabled", false))
             }
+            val language = remember {
+                mutableStateOf(AppLanguage.fromCode(preferences.getString("ui_language", "ar")))
+            }
             SideEffect {
                 WindowCompat.getInsetsController(window, window.decorView).apply {
                     isAppearanceLightStatusBars = false
                     isAppearanceLightNavigationBars = !darkMode.value
                 }
             }
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+            CompositionLocalProvider(
+                LocalAppLanguage provides language.value,
+                LocalLayoutDirection provides (
+                    if (language.value == AppLanguage.ARABIC) LayoutDirection.Rtl else LayoutDirection.Ltr
+                )
+            ) {
                 MikrotikTheme(darkTheme = darkMode.value) {
                     MainScreen(
                         homeViewModel = homeViewModel,
@@ -59,6 +69,11 @@ class MainActivity : ComponentActivity() {
                         onDarkModeToggle = { enabled ->
                             darkMode.value = enabled
                             preferences.edit().putBoolean("dark_mode_enabled", enabled).apply()
+                        },
+                        language = language.value,
+                        onLanguageChange = { selectedLanguage ->
+                            language.value = selectedLanguage
+                            preferences.edit().putString("ui_language", selectedLanguage.code).apply()
                         }
                     )
                 }

@@ -23,6 +23,8 @@ import com.example.mikrotik.presentation.home.HomeScreen
 import com.example.mikrotik.presentation.home.HomeViewModel
 import com.example.mikrotik.presentation.ui.components.AppBackground
 import com.example.mikrotik.presentation.ui.components.AppTopBar
+import com.example.mikrotik.presentation.ui.localization.AppLanguage
+import com.example.mikrotik.presentation.ui.localization.appText
 import com.example.mikrotik.presentation.ui.theme.AppIcons
 import com.example.mikrotik.presentation.voucher.VoucherScreen
 import com.example.mikrotik.presentation.voucher.VoucherViewModel
@@ -35,11 +37,11 @@ private val WatermarkLineColor get() = AppPalette.Border
 private val InactiveColor get() = AppPalette.TextNavy
 private val BottomBarBg get() = AppPalette.Card
 
-enum class BottomTab(val title: String, val icon: ImageVector) {
-    HOME("الرئيسية", AppIcons.Home),
-    CREATE_VOUCHER("إنشاء بطاقة", AppIcons.CreditCard),
-    DASHBOARD("لوحة التحكم", AppIcons.BarChart),
-    SETTINGS("الإعدادات", AppIcons.SettingsGear)
+enum class BottomTab(val icon: ImageVector) {
+    HOME(AppIcons.Home),
+    CREATE_VOUCHER(AppIcons.CreditCard),
+    DASHBOARD(AppIcons.BarChart),
+    SETTINGS(AppIcons.SettingsGear)
 }
 
 @Composable
@@ -49,7 +51,9 @@ fun MainScreen(
     voucherViewModel: VoucherViewModel,
     dashboardViewModel: DashboardViewModel,
     isDarkModeEnabled: Boolean,
-    onDarkModeToggle: (Boolean) -> Unit
+    onDarkModeToggle: (Boolean) -> Unit,
+    language: AppLanguage,
+    onLanguageChange: (AppLanguage) -> Unit
 ) {
     var currentTab by remember { mutableStateOf(BottomTab.HOME) }
 
@@ -95,13 +99,13 @@ fun MainScreen(
                                         } else {
                                             tab.icon
                                         },
-                                        contentDescription = tab.title,
+                                        contentDescription = tab.localizedTitle(),
                                         tint = contentColor,
                                         modifier = Modifier.size(26.dp)
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = tab.title,
+                                        text = tab.localizedTitle(),
                                         fontSize = 12.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                         color = contentColor,
@@ -146,13 +150,23 @@ fun MainScreen(
                         DiagnosticsScreen(
                             viewModel = diagnosticsViewModel,
                             isDarkModeEnabled = isDarkModeEnabled,
-                            onDarkModeToggle = onDarkModeToggle
+                            onDarkModeToggle = onDarkModeToggle,
+                            language = language,
+                            onLanguageChange = onLanguageChange
                         )
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun BottomTab.localizedTitle(): String = when (this) {
+    BottomTab.HOME -> appText("الرئيسية", "Home")
+    BottomTab.CREATE_VOUCHER -> appText("إنشاء بطاقة", "Create Voucher")
+    BottomTab.DASHBOARD -> appText("لوحة التحكم", "Dashboard")
+    BottomTab.SETTINGS -> appText("الإعدادات", "Settings")
 }
 
 @Composable

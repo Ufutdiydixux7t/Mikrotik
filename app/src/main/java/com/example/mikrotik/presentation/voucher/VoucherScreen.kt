@@ -16,7 +16,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -25,12 +24,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import com.example.mikrotik.data.db.entity.VoucherEntity
 import com.example.mikrotik.presentation.ui.components.AppTopBar
+import com.example.mikrotik.presentation.ui.localization.appText
 import com.example.mikrotik.presentation.ui.theme.AppIcons
 import com.example.mikrotik.ui.theme.AppPalette
 import kotlinx.coroutines.delay
@@ -44,10 +43,17 @@ private val RichGreenButton get() = AppPalette.Teal
 private val SeamlessCardBg get() = AppPalette.Card
 private val WatermarkLineColor get() = AppPalette.Border
 
-enum class VoucherFilterTab(val title: String) {
-    UNUSED("غير مستخدمة"),
-    ACTIVE("نشطة"),
-    EXPIRED("منتهية")
+enum class VoucherFilterTab {
+    UNUSED,
+    ACTIVE,
+    EXPIRED
+}
+
+@Composable
+private fun VoucherFilterTab.localizedTitle(): String = when (this) {
+    VoucherFilterTab.UNUSED -> appText("غير مستخدمة", "Unused")
+    VoucherFilterTab.ACTIVE -> appText("نشطة", "Active")
+    VoucherFilterTab.EXPIRED -> appText("منتهية", "Expired")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,13 +84,14 @@ fun VoucherScreen(
     val activeVouchers = vouchers.filter { it.isUsed && !it.isExpiredAt(currentTime) }
     val expiredVouchers = vouchers.filter { it.isExpiredAt(currentTime) }
 
+    val copiedToastText = appText("تم نسخ رمز البطاقة", "Voucher code copied")
     val copyVoucherCode: (String) -> Unit = { code ->
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("Voucher code", code))
-        Toast.makeText(context, "تم نسخ رمز البطاقة", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, copiedToastText, Toast.LENGTH_SHORT).show()
     }
 
-    val durationOptions = listOf("يوم واحد", "7 أيام", "30 يوماً")
+    val durationOptions = listOf(appText("يوم واحد", "1 day"), appText("7 أيام", "7 days"), appText("30 يوماً", "30 days"))
 
     var durationExpanded by remember { mutableStateOf(false) }
 
@@ -93,7 +100,7 @@ fun VoucherScreen(
             .fillMaxSize()
     ) {
         AppTopBar(
-            title = "إنشاء بطاقة",
+            title = appText("إنشاء بطاقة", "Create voucher"),
             subtitle = "AL RABDI NET",
             startIcon = AppIcons.CreditCard
         )
@@ -107,7 +114,6 @@ fun VoucherScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
             // Creation Card
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -130,7 +136,7 @@ fun VoucherScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "مدة صلاحية البطاقة",
+                                text = appText("مدة صلاحية البطاقة", "Voucher duration"),
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = DeepGreenHeader
@@ -146,7 +152,7 @@ fun VoucherScreen(
                             ) {
                                 Icon(
                                     imageVector = AppIcons.Clock,
-                                    contentDescription = "مدة الصلاحية",
+                                    contentDescription = appText("مدة الصلاحية", "Duration"),
                                     tint = RichGreenButton,
                                     modifier = Modifier.size(14.dp)
                                 )
@@ -161,7 +167,7 @@ fun VoucherScreen(
                                 value = durationOptions[selectedDurationIndex],
                                 onValueChange = {},
                                 readOnly = true,
-                                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Right),
+                                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Start),
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = durationExpanded) },
                                 shape = RoundedCornerShape(12.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -199,7 +205,7 @@ fun VoucherScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "حد استهلاك البطاقة",
+                                text = appText("حد استهلاك البطاقة", "Data limit"),
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = DeepGreenHeader
@@ -214,7 +220,7 @@ fun VoucherScreen(
                             ) {
                                 Icon(
                                     imageVector = AppIcons.Inventory,
-                                    contentDescription = "حد استهلاك البطاقة",
+                                    contentDescription = appText("حد استهلاك البطاقة", "Data limit"),
                                     tint = RichGreenButton,
                                     modifier = Modifier.size(14.dp)
                                 )
@@ -227,9 +233,9 @@ fun VoucherScreen(
                                 if (value.length <= 20) dataAmount = value
                                 viewModel.clearCreationError()
                             },
-                            label = { Text("أدخل الحجم") },
-                            placeholder = { Text("مثال: 500 أو 1.5") },
-                            textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Right),
+                            label = { Text(appText("أدخل الحجم", "Enter amount")) },
+                            placeholder = { Text(appText("مثال: 500 أو 1.5", "Example: 500 or 1.5")) },
+                            textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Start),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             trailingIcon = {
@@ -261,7 +267,12 @@ fun VoucherScreen(
                                         selectedDataUnit = unit
                                         viewModel.clearCreationError()
                                     },
-                                    label = { Text(if (unit == VoucherDataUnit.MB) "ميغابايت (MB)" else "غيغابايت (GB)") },
+                                    label = {
+                                        Text(
+                                            if (unit == VoucherDataUnit.MB) appText("ميغابايت (MB)", "Megabytes (MB)")
+                                            else appText("غيغابايت (GB)", "Gigabytes (GB)")
+                                        )
+                                    },
                                     modifier = Modifier.weight(1f),
                                     shape = RoundedCornerShape(12.dp),
                                     colors = FilterChipDefaults.filterChipColors(
@@ -272,7 +283,7 @@ fun VoucherScreen(
                             }
                         }
                         Text(
-                            text = "يمكن إدخال كسور مثل 1.5، ويُحسب 1 GB = 1024 MB.",
+                            text = appText("يمكن إدخال كسور مثل 1.5، ويُحسب 1 GB = 1024 MB.", "Decimal amounts are supported (e.g. 1.5); 1 GB = 1024 MB." ),
                             fontSize = 12.sp,
                             color = AppPalette.Muted
                         )
@@ -308,7 +319,7 @@ fun VoucherScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "أنشئ بطاقة",
+                                text = appText("أنشئ بطاقة", "Create voucher"),
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
@@ -317,7 +328,7 @@ fun VoucherScreen(
                     }
                     creationError?.let { error ->
                         Text(
-                            text = error,
+                            text = localizeVoucherError(error, deleting = false),
                             modifier = Modifier.fillMaxWidth(),
                             color = Color(0xFFC62828),
                             fontSize = 13.sp,
@@ -325,7 +336,6 @@ fun VoucherScreen(
                         )
                     }
                 }
-            }
             }
 
             // Filter Tabs (3 buttons: غير مستخدمة، نشطة، منتهية)
@@ -359,7 +369,7 @@ fun VoucherScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "${tab.title} ($count)",
+                                text = "${tab.localizedTitle()} ($count)",
                                 fontSize = 13.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
                                 color = if (isSelected) Color.White else DeepGreenHeader
@@ -371,9 +381,9 @@ fun VoucherScreen(
 
             when (selectedFilterTab) {
                 VoucherFilterTab.UNUSED -> VoucherStatusSection(
-                    title = "بطاقات غير مستخدمة",
+                    title = appText("بطاقات غير مستخدمة", "Unused vouchers"),
                     vouchers = unusedVouchers,
-                    emptyMessage = "لا توجد بطاقات غير مستخدمة حالياً.",
+                    emptyMessage = appText("لا توجد بطاقات غير مستخدمة حالياً.", "No unused vouchers." ),
                     statusTint = if (AppPalette.isDarkMode) Color(0xFFC2CDD2) else Color(0xFF757575),
                     statusBackground = if (AppPalette.isDarkMode) Color(0xFF303E44) else Color(0xFFF1F3F4),
                     deleteError = deleteError,
@@ -381,9 +391,9 @@ fun VoucherScreen(
                     onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
                 )
                 VoucherFilterTab.ACTIVE -> VoucherStatusSection(
-                    title = "بطاقات نشطة",
+                    title = appText("بطاقات نشطة", "Active vouchers"),
                     vouchers = activeVouchers,
-                    emptyMessage = "لا توجد بطاقات نشطة حالياً.",
+                    emptyMessage = appText("لا توجد بطاقات نشطة حالياً.", "No active vouchers." ),
                     statusTint = if (AppPalette.isDarkMode) Color(0xFF83D8A0) else Color(0xFF2E7D32),
                     statusBackground = if (AppPalette.isDarkMode) Color(0xFF203D2B) else Color(0xFFE8F5E9),
                     deleteError = deleteError,
@@ -391,9 +401,9 @@ fun VoucherScreen(
                     onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
                 )
                 VoucherFilterTab.EXPIRED -> VoucherStatusSection(
-                    title = "بطاقات منتهية",
+                    title = appText("بطاقات منتهية", "Expired vouchers"),
                     vouchers = expiredVouchers,
-                    emptyMessage = "لا توجد بطاقات منتهية حالياً.",
+                    emptyMessage = appText("لا توجد بطاقات منتهية حالياً.", "No expired vouchers." ),
                     statusTint = if (AppPalette.isDarkMode) Color(0xFFFF8A80) else Color(0xFFC62828),
                     statusBackground = if (AppPalette.isDarkMode) Color(0xFF492727) else Color(0xFFFFEBEE),
                     deleteError = deleteError,
@@ -410,14 +420,14 @@ fun VoucherScreen(
             icon = {
                 Icon(
                     imageVector = AppIcons.Shield,
-                    contentDescription = "تم بنجاح",
+                    contentDescription = appText("تم بنجاح", "Success"),
                     tint = Color(0xFF2E7D32),
                     modifier = Modifier.size(48.dp)
                 )
             },
             title = {
                 Text(
-                    text = "تم إنشاء البطاقة بنجاح",
+                    text = appText("تم إنشاء البطاقة بنجاح", "Voucher created successfully"),
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center,
                     fontWeight = FontWeight.Bold
@@ -425,14 +435,14 @@ fun VoucherScreen(
             },
             text = {
                 Text(
-                    text = "رمز البطاقة: $code",
+                    text = appText("رمز البطاقة: $code", "Voucher code: $code"),
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center
                 )
             },
             confirmButton = {
                 TextButton(onClick = { viewModel.dismissCreationSuccess() }) {
-                    Text("موافق", color = RichGreenButton, fontWeight = FontWeight.Bold)
+                    Text(appText("موافق", "OK"), color = RichGreenButton, fontWeight = FontWeight.Bold)
                 }
             },
             containerColor = Color.White
@@ -527,7 +537,8 @@ private fun VoucherItemCard(
 ) {
     var showDeleteConfirmation by remember(voucher.code) { mutableStateOf(false) }
     val dataText = formatVoucherDataLimit(voucher.dataLimitBytes)
-    val daysText = "${voucher.durationMinutes / (24 * 60)} يوم"
+    val dayCount = voucher.durationMinutes / (24 * 60)
+    val daysText = appText("$dayCount يوم", "$dayCount days")
     val expiryTime = voucher.expiryTime()
     val dateFormat = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
     val expiryDateStr = expiryTime?.let { dateFormat.format(Date(it)) }
@@ -566,14 +577,14 @@ private fun VoucherItemCard(
                 IconButton(onClick = { onCopy(voucher.code) }) {
                     Icon(
                         imageVector = AppIcons.ContentCopy,
-                        contentDescription = "نسخ رمز البطاقة",
+                        contentDescription = appText("نسخ رمز البطاقة", "Copy voucher code"),
                         tint = RichGreenButton
                     )
                 }
                 IconButton(onClick = { showDeleteConfirmation = true }) {
                     Icon(
                         imageVector = AppIcons.Delete,
-                        contentDescription = "حذف البطاقة",
+                        contentDescription = appText("حذف البطاقة", "Delete voucher"),
                         tint = Color(0xFFC62828)
                     )
                 }
@@ -593,14 +604,14 @@ private fun VoucherItemCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(text = "السعة: $dataText", fontSize = 13.sp, color = DeepGreenHeader)
-                Text(text = "الصلاحية: $daysText", fontSize = 13.sp, color = DeepGreenHeader)
+                Text(text = appText("السعة: $dataText", "Data: $dataText"), fontSize = 13.sp, color = DeepGreenHeader)
+                Text(text = appText("الصلاحية: $daysText", "Duration: $daysText"), fontSize = 13.sp, color = DeepGreenHeader)
             }
             Text(
                 text = when {
-                    expiryDateStr == null -> "تبدأ الصلاحية عند أول استخدام"
-                    statusTitle == "منتهية" -> "انتهت الصلاحية: $expiryDateStr"
-                    else -> "تنتهي الصلاحية: $expiryDateStr"
+                    expiryDateStr == null -> appText("تبدأ الصلاحية عند أول استخدام", "Validity starts on first use")
+                    statusTitle == appText("بطاقات منتهية", "Expired vouchers") -> appText("انتهت الصلاحية: $expiryDateStr", "Expired: $expiryDateStr")
+                    else -> appText("تنتهي الصلاحية: $expiryDateStr", "Expires: $expiryDateStr")
                 },
                 modifier = Modifier.fillMaxWidth(),
                 fontSize = 12.sp,
@@ -613,10 +624,10 @@ private fun VoucherItemCard(
     if (showDeleteConfirmation) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
-            title = { Text("حذف البطاقة؟") },
+            title = { Text(appText("حذف البطاقة؟", "Delete voucher?")) },
             text = {
                 Text(
-                    deleteError ?: "سيُحذف الرمز نهائيًا، ويُسحب الإنترنت فورًا من الجهاز المرتبط به. لن يمكن استخدام البطاقة بعد حذفها."
+                    deleteError?.let { localizeVoucherError(it, deleting = true) } ?: appText("سيُحذف الرمز نهائيًا، ويُسحب الإنترنت فورًا من الجهاز المرتبط به. لن يمكن استخدام البطاقة بعد حذفها.", "This voucher will be permanently deleted and internet access revoked immediately. It cannot be used again.")
                 )
             },
             confirmButton = {
@@ -626,13 +637,24 @@ private fun VoucherItemCard(
                             if (succeeded) showDeleteConfirmation = false
                         }
                     }
-                ) { Text("حذف البطاقة", color = Color(0xFFC62828)) }
+                ) { Text(appText("حذف البطاقة", "Delete voucher"), color = Color(0xFFC62828)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirmation = false }) { Text("إلغاء") }
+                TextButton(onClick = { showDeleteConfirmation = false }) { Text(appText("إلغاء", "Cancel")) }
             }
         )
     }
+}
+
+
+@Composable
+private fun localizeVoucherError(message: String, deleting: Boolean): String = when {
+    message.contains("حجم") || message.contains("صحيح") -> appText(
+        "أدخل حجماً صحيحاً أكبر من صفر واختر MB أو GB.",
+        "Enter a valid amount greater than zero and choose MB or GB."
+    )
+    deleting -> appText(message, "Could not delete the voucher or revoke access. Check root access and hotspot status, then retry.")
+    else -> appText(message, "Could not create the voucher. Check the entered values and try again.")
 }
 
 private fun formatVoucherDataLimit(bytes: Long): String {
