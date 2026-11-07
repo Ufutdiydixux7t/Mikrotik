@@ -34,6 +34,11 @@ private val SeamlessCardBg get() = AppPalette.Card
 private val WatermarkLineColor get() = AppPalette.Border
 private fun String.canonicalMac(): String = trim().lowercase()
 
+enum class DashboardTab {
+    ACTIVE,
+    BLOCKED
+}
+
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel,
@@ -56,6 +61,8 @@ private fun DashboardContent(viewModel: DashboardViewModel) {
     val visibleActiveSessions = activeSessions
         .distinctBy { it.macAddress.canonicalMac() }
         .filterNot { it.macAddress.canonicalMac() in blockedMacKeys }
+
+    var selectedTab by remember { mutableStateOf(DashboardTab.ACTIVE) }
 
     if (actionMessage != null) {
         AlertDialog(
@@ -139,75 +146,105 @@ private fun DashboardContent(viewModel: DashboardViewModel) {
                 }
             }
 
-            // Section 1: Active Sessions
-            Text(
-                text = appText("الجلسات النشطة المباشرة", "Live active sessions"),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = DeepGreenHeader
-            )
+            // Two Filter Buttons (Active Devices vs Blocked Devices)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                val tabs = listOf(
+                    DashboardTab.ACTIVE to appText("الأجهزة النشطة", "Active devices") to visibleActiveSessions.size,
+                    DashboardTab.BLOCKED to appText("الأجهزة المحظورة", "Blocked devices") to uniqueBlockedMacs.size
+                )
 
-            if (visibleActiveSessions.isEmpty()) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Text(
-                        text = appText("لا توجد جلسات نشطة حالياً. بمجرد تسجيل دخول العملاء ستظهر تفاصيلهم هنا.", "No active sessions. Client details will appear here after they sign in."),
+                tabs.forEach { (pair, count) ->
+                    val (tab, title) = pair
+                    val isSelected = selectedTab == tab
+                    Surface(
+                        onClick = { selectedTab = tab },
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(18.dp),
-                        color = Color.Gray,
-                        fontSize = 12.sp,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            } else {
-                visibleActiveSessions.forEach { session ->
-                    DeviceUsageCard(
-                        session = session,
-                        usage = deviceUsage[session.macAddress],
-                        viewModel = viewModel,
-                        onBlock = { viewModel.blockDevice(session.macAddress) },
-                        onRename = viewModel::saveDeviceName
-                    )
+                            .weight(1f)
+                            .height(46.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) RichGreenButton else SeamlessCardBg,
+                        border = BorderStroke(1.dp, if (isSelected) RichGreenButton else WatermarkLineColor),
+                        shadowElevation = if (isSelected) 2.dp else 0.dp
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "$title ($count)",
+                                fontSize = 13.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                color = if (isSelected) Color.White else DeepGreenHeader
+                            )
+                        }
+                    }
                 }
             }
 
-            // Section 2: Blocked Devices
-            Text(
-                text = appText("قائمة الأجهزة المحظورة", "Blocked devices"),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = DeepGreenHeader
-            )
-
-            if (uniqueBlockedMacs.isEmpty()) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Text(
-                        text = appText("لا توجد أجهزة محظورة حالياً.", "There are no blocked devices."),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(18.dp),
-                        color = Color.Gray,
-                        fontSize = 12.sp,
-                        textAlign = TextAlign.Center
-                    )
+            when (selectedTab) {
+                DashboardTab.ACTIVE -> {
+                    if (visibleActiveSessions.isEmpty()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text(
+                                text = appText("لا توجد جلسات نشطة حالياً. بمجرد تسجيل دخول العملاء ستظهر تفاصيلهم هنا.", "No active sessions. Client details will appear here after they sign in."),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(18.dp),
+                                color = Color.Gray,
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        visibleActiveSessions.forEach { session ->
+                            DeviceUsageCard(
+                                session = session,
+                                usage = deviceUsage[session.macAddress],
+                                viewModel = viewModel,
+                                onBlock = { viewModel.blockDevice(session.macAddress) },
+                                onRename = viewModel::saveDeviceName
+                            )
+                        }
+                    }
                 }
-            } else {
-                uniqueBlockedMacs.forEach { blockedMac ->
-                    BlockedDeviceCard(
-                        blockedMac = blockedMac,
-                        displayName = viewModel.getDeviceName(blockedMac.macAddress, appText("جهاز ${blockedMac.macAddress.takeLast(5)}", "Device ${blockedMac.macAddress.takeLast(5)}")),
-                        voucherCode = blockedVoucherCodes[blockedMac.macAddress.canonicalMac()],
-                        onRename = viewModel::saveDeviceName,
-                        onUnblock = { viewModel.unblockDevice(blockedMac.macAddress) }
-                    )
+                DashboardTab.BLOCKED -> {
+                    if (uniqueBlockedMacs.isEmpty()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text(
+                                text = appText("لا توجد أجهزة محظورة حالياً.", "There are no blocked devices."),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(18.dp),
+                                color = Color.Gray,
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        uniqueBlockedMacs.forEach { blockedMac ->
+                            BlockedDeviceCard(
+                                blockedMac = blockedMac,
+                                displayName = viewModel.getDeviceName(blockedMac.macAddress, appText("جهاز ${blockedMac.macAddress.takeLast(5)}", "Device ${blockedMac.macAddress.takeLast(5)}")),
+                                voucherCode = blockedVoucherCodes[blockedMac.macAddress.canonicalMac()],
+                                onRename = viewModel::saveDeviceName,
+                                onUnblock = { viewModel.unblockDevice(blockedMac.macAddress) }
+                            )
+                        }
+                    }
                 }
             }
         }
