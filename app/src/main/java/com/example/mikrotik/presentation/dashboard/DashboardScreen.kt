@@ -21,6 +21,9 @@ import androidx.compose.ui.unit.sp
 import com.example.mikrotik.data.db.entity.ActiveSessionEntity
 import com.example.mikrotik.data.db.entity.BlockedMacEntity
 import com.example.mikrotik.presentation.ui.components.AppTopBar
+import com.example.mikrotik.presentation.ui.localization.AppLanguage
+import com.example.mikrotik.presentation.ui.localization.LocalAppLanguage
+import com.example.mikrotik.presentation.ui.localization.appText
 import com.example.mikrotik.presentation.ui.theme.AppIcons
 import com.example.mikrotik.ui.theme.AppPalette
 
@@ -31,8 +34,16 @@ private val WatermarkLineColor get() = AppPalette.Border
 
 @Composable
 fun DashboardScreen(
-    viewModel: DashboardViewModel
+    viewModel: DashboardViewModel,
+    language: AppLanguage
 ) {
+    CompositionLocalProvider(LocalAppLanguage provides language) {
+        DashboardContent(viewModel)
+    }
+}
+
+@Composable
+private fun DashboardContent(viewModel: DashboardViewModel) {
     val activeSessions by viewModel.activeSessions.collectAsState()
     val blockedMacs by viewModel.blockedMacs.collectAsState()
     val deviceUsage by viewModel.deviceUsage.collectAsState()
@@ -41,10 +52,10 @@ fun DashboardScreen(
     if (actionMessage != null) {
         AlertDialog(
             onDismissRequest = viewModel::clearActionMessage,
-            title = { Text("حالة الجهاز") },
-            text = { Text(actionMessage.orEmpty()) },
+            title = { Text(appText("حالة الجهاز", "Device status")) },
+            text = { Text(localizeDeviceAction(actionMessage.orEmpty())) },
             confirmButton = {
-                TextButton(onClick = viewModel::clearActionMessage) { Text("حسناً") }
+                TextButton(onClick = viewModel::clearActionMessage) { Text(appText("حسناً", "OK")) }
             }
         )
     }
@@ -54,7 +65,7 @@ fun DashboardScreen(
             .fillMaxSize()
     ) {
         AppTopBar(
-            title = "لوحة التحكم وإدارة الشبكة",
+            title = appText("لوحة التحكم وإدارة الشبكة", "Network dashboard"),
             subtitle = "AL RABDI NET",
             startIcon = AppIcons.BarChart
         )
@@ -91,7 +102,7 @@ fun DashboardScreen(
                             color = RichGreenButton
                         )
                         Text(
-                            text = "الجلسات الفعالة",
+                            text = appText("الجلسات الفعالة", "Active sessions"),
                             fontSize = 12.sp,
                             color = Color.Gray
                         )
@@ -112,7 +123,7 @@ fun DashboardScreen(
                             color = Color(0xFFC62828)
                         )
                         Text(
-                            text = "الأجهزة المحظورة",
+                            text = appText("الأجهزة المحظورة", "Blocked devices"),
                             fontSize = 12.sp,
                             color = Color.Gray
                         )
@@ -122,7 +133,7 @@ fun DashboardScreen(
 
             // Section 1: Active Sessions
             Text(
-                text = "الجلسات النشطة المباشرة",
+                text = appText("الجلسات النشطة المباشرة", "Live active sessions"),
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
                 color = DeepGreenHeader
@@ -135,7 +146,7 @@ fun DashboardScreen(
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Text(
-                        text = "لا توجد جلسات نشطة حالياً. بمجرد تسجيل دخول العملاء ستظهر تفاصيلهم هنا.",
+                        text = appText("لا توجد جلسات نشطة حالياً. بمجرد تسجيل دخول العملاء ستظهر تفاصيلهم هنا.", "No active sessions. Client details will appear here after they sign in."),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(20.dp),
@@ -157,7 +168,7 @@ fun DashboardScreen(
 
             // Section 2: Blocked Devices
             Text(
-                text = "قائمة الأجهزة المحظورة",
+                text = appText("قائمة الأجهزة المحظورة", "Blocked devices"),
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
                 color = DeepGreenHeader
@@ -170,7 +181,7 @@ fun DashboardScreen(
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Text(
-                        text = "لا توجد أجهزة محظورة حالياً.",
+                        text = appText("لا توجد أجهزة محظورة حالياً.", "There are no blocked devices."),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(20.dp),
@@ -183,7 +194,7 @@ fun DashboardScreen(
                 blockedMacs.forEach { blockedMac ->
                     BlockedDeviceCard(
                         blockedMac = blockedMac,
-                        displayName = viewModel.getDeviceName(blockedMac.macAddress),
+                        displayName = viewModel.getDeviceName(blockedMac.macAddress, appText("جهاز ${blockedMac.macAddress.takeLast(5)}", "Device ${blockedMac.macAddress.takeLast(5)}")),
                         onRename = viewModel::saveDeviceName,
                         onUnblock = { viewModel.unblockDevice(blockedMac.macAddress) }
                     )
@@ -194,14 +205,47 @@ fun DashboardScreen(
 }
 
 @Composable
+private fun localizeDeviceAction(message: String): String = when {
+    message.startsWith("تم حظر الجهاز") -> appText(
+        message,
+        "Device blocked: internet was cut off and the active voucher was deleted. A new voucher is required after unblocking."
+    )
+    message.startsWith("سُجل الجهاز") -> appText(
+        message,
+        "The device was added to the block list, but some network rules could not be applied. Keep the hotspot on and retry."
+    )
+    message.startsWith("تعذر حظر الجهاز") -> appText(
+        message,
+        "Could not block the device: ${message.substringAfter(':').trim()}"
+    )
+    message.startsWith("لم يكتمل رفع الحظر") -> appText(
+        message,
+        "Could not finish unblocking because network rules could not be updated. Check root access and hotspot status, then retry."
+    )
+    message.startsWith("تم رفع الحظر. سيُعاد فحص البوابة") -> appText(
+        message,
+        "Device unblocked. It will be asked to sign in again with a new voucher."
+    )
+    message.startsWith("تم رفع الحظر، لكن") -> appText(
+        message,
+        "Device unblocked, but reconnecting it could not be forced. It will need to sign in when it next opens the internet."
+    )
+    message.startsWith("تعذر رفع الحظر") -> appText(
+        message,
+        "Could not unblock the device: ${message.substringAfter(':').trim()}"
+    )
+    else -> appText(message, "Device action completed.")
+}
+
+@Composable
 fun ActiveSessionCard(
     session: ActiveSessionEntity,
     usage: DeviceUsageInfo?,
     onBlock: () -> Unit,
     onRename: (String, String) -> Unit
 ) {
-    val fallbackName = "جهاز ${session.macAddress.takeLast(5)}"
-    val deviceName = usage?.displayName ?: fallbackName
+    val fallbackName = appText("جهاز ${session.macAddress.takeLast(5)}", "Device ${session.macAddress.takeLast(5)}")
+    val deviceName = usage?.displayName?.takeIf { it.isNotBlank() } ?: fallbackName
     var showRenameDialog by remember(session.macAddress) { mutableStateOf(false) }
     var editedName by remember(session.macAddress) { mutableStateOf("") }
     val quotaBytes = usage?.quotaBytes ?: 0L
@@ -234,7 +278,7 @@ fun ActiveSessionCard(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                     modifier = Modifier.height(32.dp)
                 ) {
-                    Text("حظر", fontSize = 12.sp, color = Color.White)
+                    Text(appText("حظر", "Block"), fontSize = 12.sp, color = Color.White)
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -284,7 +328,7 @@ fun ActiveSessionCard(
                     },
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                 ) {
-                    Text("تعديل الاسم", fontSize = 12.sp, color = RichGreenButton)
+                    Text(appText("تعديل الاسم", "Rename device"), fontSize = 12.sp, color = RichGreenButton)
                 }
                 Text(
                     text = deviceName,
@@ -295,10 +339,10 @@ fun ActiveSessionCard(
             }
             Text(
                 text = when {
-                    usage == null -> "جارٍ قراءة الاستهلاك..."
-                    !usage.isMeasured -> "عداد الاستهلاك غير متاح حالياً"
-                    usage.quotaBytes <= 0L -> "الاستهلاك: ${formatUsageBytes(usage.bytesUsed)}"
-                    else -> "${formatUsageBytes(usage.bytesUsed)} من ${formatUsageBytes(usage.quotaBytes)}"
+                    usage == null -> appText("جارٍ قراءة الاستهلاك...", "Reading usage…")
+                    !usage.isMeasured -> appText("عداد الاستهلاك غير متاح حالياً", "Usage counter is not available")
+                    usage.quotaBytes <= 0L -> appText("الاستهلاك: ${formatUsageBytes(usage.bytesUsed)}", "Used: ${formatUsageBytes(usage.bytesUsed)}")
+                    else -> appText("${formatUsageBytes(usage.bytesUsed)} من ${formatUsageBytes(usage.quotaBytes)}", "${formatUsageBytes(usage.bytesUsed)} of ${formatUsageBytes(usage.quotaBytes)}")
                 },
                 modifier = Modifier.fillMaxWidth(),
                 fontSize = 12.sp,
@@ -322,7 +366,7 @@ fun ActiveSessionCard(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "الكود: ${session.voucherCode}",
+                text = appText("الكود: ${session.voucherCode}", "Voucher: ${session.voucherCode}"),
                 modifier = Modifier.fillMaxWidth(),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
@@ -335,12 +379,12 @@ fun ActiveSessionCard(
     if (showRenameDialog) {
         AlertDialog(
             onDismissRequest = { showRenameDialog = false },
-            title = { Text("تعديل اسم الجهاز") },
+            title = { Text(appText("تعديل اسم الجهاز", "Rename device")) },
             text = {
                 OutlinedTextField(
                     value = editedName,
                     onValueChange = { editedName = it.take(40) },
-                    label = { Text("اسم الجهاز") },
+                    label = { Text(appText("اسم الجهاز", "Device name")) },
                     singleLine = true
                 )
             },
@@ -351,10 +395,10 @@ fun ActiveSessionCard(
                         showRenameDialog = false
                     },
                     enabled = editedName.isNotBlank()
-                ) { Text("حفظ") }
+                ) { Text(appText("حفظ", "Save")) }
             },
             dismissButton = {
-                TextButton(onClick = { showRenameDialog = false }) { Text("إلغاء") }
+                TextButton(onClick = { showRenameDialog = false }) { Text(appText("إلغاء", "Cancel")) }
             }
         )
     }
@@ -367,8 +411,8 @@ private fun DeviceUsageCard(
     onBlock: () -> Unit,
     onRename: (String, String) -> Unit
 ) {
-    val fallbackName = "جهاز ${session.macAddress.takeLast(5)}"
-    val deviceName = usage?.displayName ?: fallbackName
+    val fallbackName = appText("جهاز ${session.macAddress.takeLast(5)}", "Device ${session.macAddress.takeLast(5)}")
+    val deviceName = usage?.displayName?.takeIf { it.isNotBlank() } ?: fallbackName
     val quotaBytes = usage?.quotaBytes ?: 0L
     val usedBytes = (usage?.bytesUsed ?: 0L).coerceAtLeast(0L)
     val usageFraction = if (quotaBytes > 0L) {
@@ -412,7 +456,7 @@ private fun DeviceUsageCard(
                 ) {
                     Icon(
                         imageVector = AppIcons.SystemMonitor,
-                        contentDescription = "جهاز متصل",
+                        contentDescription = appText("جهاز متصل", "Connected device"),
                         tint = RichGreenButton,
                         modifier = Modifier.size(36.dp)
                     )
@@ -479,10 +523,10 @@ private fun DeviceUsageCard(
                     }
                     Text(
                         text = when {
-                            usage == null -> "جارٍ القياس"
+                            usage == null -> appText("جارٍ القياس", "Measuring…")
                             quotaBytes > 0L -> "${formatUsageBytes(usedBytes)} / ${formatUsageBytes(quotaBytes)}"
                             usage.isMeasured -> formatUsageBytes(usedBytes)
-                            else -> "غير متاح"
+                            else -> appText("غير متاح", "Not available")
                         },
                         fontSize = 10.sp,
                         color = AppPalette.Muted,
@@ -503,12 +547,12 @@ private fun DeviceUsageCard(
                     ) {
                         Icon(
                             imageVector = AppIcons.Edit,
-                            contentDescription = "تعديل الاسم",
+                            contentDescription = appText("تعديل الاسم", "Rename device"),
                             modifier = Modifier.size(17.dp),
                             tint = RichGreenButton
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("الاسم", fontSize = 12.sp, color = RichGreenButton)
+                        Text(appText("الاسم", "Name"), fontSize = 12.sp, color = RichGreenButton)
                     }
 
                     OutlinedButton(
@@ -523,7 +567,7 @@ private fun DeviceUsageCard(
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(5.dp))
-                        Text("حظر", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text(appText("حظر", "Block"), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -533,12 +577,12 @@ private fun DeviceUsageCard(
     if (showRenameDialog) {
         AlertDialog(
             onDismissRequest = { showRenameDialog = false },
-            title = { Text("تعديل اسم الجهاز") },
+            title = { Text(appText("تعديل اسم الجهاز", "Rename device")) },
             text = {
                 OutlinedTextField(
                     value = editedName,
                     onValueChange = { editedName = it.take(40) },
-                    label = { Text("اسم الجهاز") },
+                    label = { Text(appText("اسم الجهاز", "Device name")) },
                     singleLine = true
                 )
             },
@@ -549,10 +593,10 @@ private fun DeviceUsageCard(
                         showRenameDialog = false
                     },
                     enabled = editedName.isNotBlank()
-                ) { Text("حفظ") }
+                ) { Text(appText("حفظ", "Save")) }
             },
             dismissButton = {
-                TextButton(onClick = { showRenameDialog = false }) { Text("إلغاء") }
+                TextButton(onClick = { showRenameDialog = false }) { Text(appText("إلغاء", "Cancel")) }
             }
         )
     }
@@ -560,9 +604,9 @@ private fun DeviceUsageCard(
     if (showBlockDialog) {
         AlertDialog(
             onDismissRequest = { showBlockDialog = false },
-            title = { Text("حظر الجهاز؟") },
+            title = { Text(appText("حظر الجهاز؟", "Block this device?")) },
             text = {
-                Text("سيتم قطع الإنترنت عن الجهاز وحذف البطاقة المتصل بها. عند رفع الحظر سيحتاج إلى تسجيل الدخول ببطاقة جديدة.")
+                Text(appText("سيتم قطع الإنترنت عن الجهاز وحذف البطاقة المتصل بها. عند رفع الحظر سيحتاج إلى تسجيل الدخول ببطاقة جديدة.", "This will cut off the device's internet and delete its active voucher. After unblocking, it will need to sign in with a new voucher."))
             },
             confirmButton = {
                 TextButton(
@@ -570,10 +614,10 @@ private fun DeviceUsageCard(
                         showBlockDialog = false
                         onBlock()
                     }
-                ) { Text("حظر وحذف البطاقة", color = Color(0xFFC62828)) }
+                ) { Text(appText("حظر وحذف البطاقة", "Block and delete voucher"), color = Color(0xFFC62828)) }
             },
             dismissButton = {
-                TextButton(onClick = { showBlockDialog = false }) { Text("إلغاء") }
+                TextButton(onClick = { showBlockDialog = false }) { Text(appText("إلغاء", "Cancel")) }
             }
         )
     }
@@ -624,7 +668,7 @@ private fun BlockedDeviceCard(
                 ) {
                     Icon(
                         imageVector = AppIcons.SystemMonitor,
-                        contentDescription = "جهاز محظور",
+                        contentDescription = appText("جهاز محظور", "Blocked device"),
                         tint = Color(0xFFC62828),
                         modifier = Modifier.size(34.dp)
                     )
@@ -677,7 +721,7 @@ private fun BlockedDeviceCard(
                             .clip(CircleShape)
                             .background(Color(0xFFC62828))
                     )
-                    Text("محظور", fontSize = 12.sp, color = Color(0xFFC62828), fontWeight = FontWeight.Bold)
+                    Text(appText("محظور", "Blocked"), fontSize = 12.sp, color = Color(0xFFC62828), fontWeight = FontWeight.Bold)
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -692,12 +736,12 @@ private fun BlockedDeviceCard(
                     ) {
                         Icon(
                             imageVector = AppIcons.Edit,
-                            contentDescription = "تعديل الاسم",
+                            contentDescription = appText("تعديل الاسم", "Rename device"),
                             modifier = Modifier.size(17.dp),
                             tint = RichGreenButton
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("الاسم", fontSize = 12.sp, color = RichGreenButton)
+                        Text(appText("الاسم", "Name"), fontSize = 12.sp, color = RichGreenButton)
                     }
                     Button(
                         onClick = onUnblock,
@@ -711,7 +755,7 @@ private fun BlockedDeviceCard(
                             modifier = Modifier.size(17.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("رفع الحظر", fontSize = 13.sp, color = Color.White)
+                        Text(appText("رفع الحظر", "Unblock"), fontSize = 13.sp, color = Color.White)
                     }
                 }
             }
@@ -721,12 +765,12 @@ private fun BlockedDeviceCard(
     if (showRenameDialog) {
         AlertDialog(
             onDismissRequest = { showRenameDialog = false },
-            title = { Text("تعديل اسم الجهاز") },
+            title = { Text(appText("تعديل اسم الجهاز", "Rename device")) },
             text = {
                 OutlinedTextField(
                     value = editedName,
                     onValueChange = { editedName = it.take(40) },
-                    label = { Text("اسم الجهاز") },
+                    label = { Text(appText("اسم الجهاز", "Device name")) },
                     singleLine = true
                 )
             },
@@ -737,10 +781,10 @@ private fun BlockedDeviceCard(
                         showRenameDialog = false
                     },
                     enabled = editedName.isNotBlank()
-                ) { Text("حفظ") }
+                ) { Text(appText("حفظ", "Save")) }
             },
             dismissButton = {
-                TextButton(onClick = { showRenameDialog = false }) { Text("إلغاء") }
+                TextButton(onClick = { showRenameDialog = false }) { Text(appText("إلغاء", "Cancel")) }
             }
         )
     }
@@ -773,7 +817,7 @@ fun BlockedMacCard(
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.height(32.dp)
             ) {
-                Text("إلغاء الحظر", fontSize = 12.sp, color = Color.White)
+                Text(appText("إلغاء الحظر", "Unblock"), fontSize = 12.sp, color = Color.White)
             }
 
             Column(horizontalAlignment = Alignment.End) {

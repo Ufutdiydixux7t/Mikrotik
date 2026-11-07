@@ -3,7 +3,10 @@ package com.example.mikrotik.presentation.home
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,6 +23,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.math.BigDecimal
+import java.math.RoundingMode
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
+import java.util.Locale
 import com.example.mikrotik.domain.model.ConnectedDevice
 import com.example.mikrotik.domain.model.HotspotState
 import com.example.mikrotik.presentation.ui.components.AppTopBar
@@ -45,7 +53,7 @@ fun HomeScreen(
     val connectedDevices by viewModel.connectedDevices.collectAsState()
     val isWifiActive by viewModel.isWifiActive.collectAsState()
     val isDataActive by viewModel.isDataActive.collectAsState()
-    val totalUsage by viewModel.totalUsageFormatted.collectAsState()
+    val usageSummary by viewModel.usageSummary.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
 
     var isDevicesExpanded by remember { mutableStateOf(true) }
@@ -85,7 +93,7 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // 1. Total Usage Seamless Card with Watermark Lines
-            TotalUsageCard(totalUsage = totalUsage)
+            TotalUsageCard(usageSummary = usageSummary)
 
             // 2. WiFi, Mobile Data and Hotspot Status Cards Row (Side by side)
             Row(
@@ -126,8 +134,10 @@ fun HomeScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun TotalUsageCard(totalUsage: String) {
+fun TotalUsageCard(usageSummary: TotalUsageSummary) {
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { 3 })
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -147,43 +157,89 @@ fun TotalUsageCard(totalUsage: String) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(24.dp),
+                    .padding(horizontal = 20.dp, vertical = 18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Icon(
                     imageVector = AppIcons.AntennaHotspot,
                     contentDescription = "Antenna",
                     tint = RichGreenButton,
-                    modifier = Modifier.size(42.dp)
+                    modifier = Modifier.size(34.dp)
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(5.dp))
                 Text(
                     text = appText("استهلاك الإنترنت الكلي", "Total internet usage"),
                     color = DeepGreenHeader,
-                    fontSize = 18.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxWidth().height(104.dp)
+                ) { page ->
+                    val (periodTitle, bytes) = when (page) {
+                        0 -> appText("استهلاك اليوم", "Today") to usageSummary.todayBytes
+                        1 -> appText("استهلاك هذا الشهر", "This month") to usageSummary.monthBytes
+                        else -> appText("استهلاك هذه السنة", "This year") to usageSummary.yearBytes
+                    }
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(periodTitle, color = AppPalette.Muted, fontSize = 13.sp)
+                        Text(
+                            text = if (usageSummary.isAvailable) formatTotalUsage(bytes)
+                            else appText("غير متاح", "Not available"),
+                            color = DeepGreenHeader,
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    repeat(3) { page ->
+                        Box(
+                            modifier = Modifier
+                                .size(if (pagerState.currentPage == page) 8.dp else 6.dp)
+                                .clip(CircleShape)
+                                .background(if (pagerState.currentPage == page) RichGreenButton else AppPalette.Border)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(5.dp))
                 Text(
-                    text = when (totalUsage) {
-                        "جارٍ القياس" -> appText("جارٍ القياس", "Measuring…")
-                        "غير متاح" -> appText("غير متاح", "Not available")
-                        else -> totalUsage
-                    },
-                    color = DeepGreenHeader,
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.ExtraBold
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = appText("Wi-Fi + بيانات الهاتف • منذ آخر إعادة تشغيل", "Wi-Fi + mobile data • since last restart"),
+                    text = appText("Wi-Fi + بيانات الهاتف • اسحب لعرض الشهري والسنوي", "Wi-Fi + mobile data • swipe for monthly and yearly"),
                     color = DeepGreenHeader.copy(alpha = 0.72f),
                     fontSize = 12.sp,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = appText("يبدأ التجميع من أول قراءة بعد التحديث", "Totals accumulate from the first reading after this update"),
+                    color = AppPalette.Muted,
+                    fontSize = 10.sp,
                     textAlign = TextAlign.Center
                 )
             }
         }
     }
+}
+
+private fun formatTotalUsage(bytes: Long): String {
+    val nonNegativeBytes = bytes.coerceAtLeast(0L)
+    val (divisor, unit) = when {
+        nonNegativeBytes >= 1024L * 1024L * 1024L -> 1024L * 1024L * 1024L to "GB"
+        nonNegativeBytes >= 1024L * 1024L -> 1024L * 1024L to "MB"
+        nonNegativeBytes >= 1024L -> 1024L to "KB"
+        else -> 1L to "B"
+    }
+    val value = BigDecimal.valueOf(nonNegativeBytes)
+        .divide(BigDecimal.valueOf(divisor), 2, RoundingMode.HALF_UP)
+    val formatted = DecimalFormat("0.##", DecimalFormatSymbols.getInstance(Locale.US)).format(value)
+    return "$formatted $unit"
 }
 
 @Composable

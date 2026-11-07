@@ -1,7 +1,7 @@
 package com.example.mikrotik.presentation.ui.localization
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.compositionLocalOf
 
 enum class AppLanguage(val code: String, val nativeName: String) {
     ARABIC("ar", "العربية"),
@@ -13,7 +13,7 @@ enum class AppLanguage(val code: String, val nativeName: String) {
     }
 }
 
-val LocalAppLanguage = staticCompositionLocalOf { AppLanguage.ARABIC }
+val LocalAppLanguage = compositionLocalOf { AppLanguage.ARABIC }
 
 @Composable
 fun appText(arabic: String, english: String): String =

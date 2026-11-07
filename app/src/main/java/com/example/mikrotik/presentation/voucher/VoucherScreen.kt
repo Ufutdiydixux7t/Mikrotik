@@ -68,8 +68,8 @@ fun VoucherScreen(
     val context = LocalContext.current
 
     var selectedFilterTab by remember { mutableStateOf(VoucherFilterTab.UNUSED) }
-    var selectedDurationIndex by rememberSaveable { mutableIntStateOf(0) }
-    var dataAmount by rememberSaveable { mutableStateOf("500") }
+    var durationDays by rememberSaveable { mutableStateOf("") }
+    var dataAmount by rememberSaveable { mutableStateOf("") }
     var selectedDataUnit by rememberSaveable { mutableStateOf(VoucherDataUnit.MB) }
     var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
@@ -90,10 +90,6 @@ fun VoucherScreen(
         clipboard.setPrimaryClip(ClipData.newPlainText("Voucher code", code))
         Toast.makeText(context, copiedToastText, Toast.LENGTH_SHORT).show()
     }
-
-    val durationOptions = listOf(appText("يوم واحد", "1 day"), appText("7 أيام", "7 days"), appText("30 يوماً", "30 days"))
-
-    var durationExpanded by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -128,7 +124,7 @@ fun VoucherScreen(
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Duration Dropdown
+                    // Manually entered voucher duration in days.
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -136,13 +132,12 @@ fun VoucherScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = appText("مدة صلاحية البطاقة", "Voucher duration"),
+                                text = appText("مدة الصلاحية بالأيام", "Validity (days)"),
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = DeepGreenHeader
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            // Small icon placeholder
                             Box(
                                 modifier = Modifier
                                     .size(20.dp)
@@ -158,43 +153,34 @@ fun VoucherScreen(
                                 )
                             }
                         }
-
-                        ExposedDropdownMenuBox(
-                            expanded = durationExpanded,
-                            onExpandedChange = { durationExpanded = !durationExpanded }
-                        ) {
-                            OutlinedTextField(
-                                value = durationOptions[selectedDurationIndex],
-                                onValueChange = {},
-                                readOnly = true,
-                                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Start),
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = durationExpanded) },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = RichGreenButton,
-                                    unfocusedBorderColor = WatermarkLineColor,
-                                    focusedContainerColor = AppPalette.Card,
-                                    unfocusedContainerColor = AppPalette.Card
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .menuAnchor()
-                            )
-                            ExposedDropdownMenu(
-                                expanded = durationExpanded,
-                                onDismissRequest = { durationExpanded = false }
-                            ) {
-                                durationOptions.forEachIndexed { index, option ->
-                                    DropdownMenuItem(
-                                        text = { Text(option) },
-                                        onClick = {
-                                            selectedDurationIndex = index
-                                            durationExpanded = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
+                        OutlinedTextField(
+                            value = durationDays,
+                            onValueChange = { value ->
+                                if (value.length <= 7 && value.all(Char::isDigit)) durationDays = value
+                                viewModel.clearCreationError()
+                            },
+                            label = { Text(appText("أدخل عدد الأيام", "Enter number of days")) },
+                            placeholder = { Text(appText("مثال: 7", "Example: 7")) },
+                            textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Start),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            trailingIcon = {
+                                Text(
+                                    text = appText("يوم", "days"),
+                                    modifier = Modifier.padding(end = 8.dp),
+                                    color = RichGreenButton,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = RichGreenButton,
+                                unfocusedBorderColor = WatermarkLineColor,
+                                focusedContainerColor = AppPalette.Card,
+                                unfocusedContainerColor = AppPalette.Card
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
 
                     // Custom data limit with an explicit unit.
@@ -294,11 +280,7 @@ fun VoucherScreen(
                     // Create Button
                     Button(
                         onClick = {
-                            val days = when (selectedDurationIndex) {
-                                0 -> 1
-                                1 -> 7
-                                else -> 30
-                            }
+                            val days = durationDays.toIntOrNull() ?: 0
                             viewModel.createVoucher(days, dataAmount, selectedDataUnit)
                         },
                         modifier = Modifier
@@ -414,9 +396,15 @@ fun VoucherScreen(
         }
     }
 
+    val dismissCreationAndReset = {
+        durationDays = ""
+        dataAmount = ""
+        viewModel.dismissCreationSuccess()
+    }
+
     creationSuccess?.let { code ->
         AlertDialog(
-            onDismissRequest = { viewModel.dismissCreationSuccess() },
+            onDismissRequest = dismissCreationAndReset,
             icon = {
                 Icon(
                     imageVector = AppIcons.Shield,
@@ -441,7 +429,7 @@ fun VoucherScreen(
                 )
             },
             confirmButton = {
-                TextButton(onClick = { viewModel.dismissCreationSuccess() }) {
+                TextButton(onClick = dismissCreationAndReset) {
                     Text(appText("موافق", "OK"), color = RichGreenButton, fontWeight = FontWeight.Bold)
                 }
             },
@@ -649,6 +637,10 @@ private fun VoucherItemCard(
 
 @Composable
 private fun localizeVoucherError(message: String, deleting: Boolean): String = when {
+    message.contains("الأيام") -> appText(
+        "أدخل عدداً صحيحاً من الأيام أكبر من صفر.",
+        "Enter a whole number of days greater than zero."
+    )
     message.contains("حجم") || message.contains("صحيح") -> appText(
         "أدخل حجماً صحيحاً أكبر من صفر واختر MB أو GB.",
         "Enter a valid amount greater than zero and choose MB or GB."

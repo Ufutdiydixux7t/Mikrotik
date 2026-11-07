@@ -144,7 +144,7 @@ fun MainScreen(
                         VoucherScreen(viewModel = voucherViewModel)
                     }
                     BottomTab.DASHBOARD -> {
-                        DashboardScreen(viewModel = dashboardViewModel)
+                        DashboardScreen(viewModel = dashboardViewModel, language = language)
                     }
                     BottomTab.SETTINGS -> {
                         DiagnosticsScreen(

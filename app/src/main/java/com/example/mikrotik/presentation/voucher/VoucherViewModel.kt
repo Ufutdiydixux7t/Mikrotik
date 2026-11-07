@@ -46,7 +46,11 @@ class VoucherViewModel @Inject constructor(
 
     fun createVoucher(durationDays: Int, dataAmount: String, dataUnit: VoucherDataUnit) {
         val dataBytes = VoucherSizeParser.toBytes(dataAmount, dataUnit)
-        if (durationDays <= 0 || dataBytes == null) {
+        if (durationDays <= 0) {
+            _creationError.value = "أدخل عدداً صحيحاً من الأيام أكبر من صفر."
+            return
+        }
+        if (dataBytes == null) {
             _creationError.value = "أدخل حجماً صحيحاً أكبر من صفر واختر MB أو GB."
             return
         }
