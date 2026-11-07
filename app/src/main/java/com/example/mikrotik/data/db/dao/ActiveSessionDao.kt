@@ -17,8 +17,14 @@ interface ActiveSessionDao {
     @Query("SELECT * FROM active_sessions WHERE isActive = 1 ORDER BY connectedAt DESC")
     suspend fun getActiveSessionsSnapshot(): List<ActiveSessionEntity>
 
-    @Query("SELECT * FROM active_sessions WHERE macAddress = :macAddress LIMIT 1")
+    @Query("SELECT * FROM active_sessions WHERE macAddress COLLATE NOCASE = :macAddress ORDER BY connectedAt DESC LIMIT 1")
     suspend fun getSessionByMac(macAddress: String): ActiveSessionEntity?
+
+    @Query("SELECT * FROM active_sessions WHERE macAddress COLLATE NOCASE = :macAddress ORDER BY connectedAt DESC")
+    suspend fun getSessionsByMac(macAddress: String): List<ActiveSessionEntity>
+
+    @Query("DELETE FROM active_sessions WHERE macAddress COLLATE NOCASE = :macAddress")
+    suspend fun deleteSessionsByMac(macAddress: String)
 
     @Query("SELECT * FROM active_sessions WHERE voucherCode = :voucherCode")
     suspend fun getSessionsByVoucherCode(voucherCode: String): List<ActiveSessionEntity>
@@ -29,9 +35,12 @@ interface ActiveSessionDao {
     @Update
     suspend fun updateSession(session: ActiveSessionEntity)
 
-    @Query("UPDATE active_sessions SET isActive = 0 WHERE macAddress = :macAddress")
+    @Query("UPDATE active_sessions SET isActive = 0 WHERE macAddress COLLATE NOCASE = :macAddress")
     suspend fun deactivateSession(macAddress: String)
 
-    @Query("DELETE FROM active_sessions WHERE macAddress = :macAddress")
+    @Query("UPDATE active_sessions SET isActive = 0 WHERE macAddress COLLATE NOCASE = :macAddress")
+    suspend fun deactivateSessionsByMac(macAddress: String)
+
+    @Query("DELETE FROM active_sessions WHERE macAddress COLLATE NOCASE = :macAddress")
     suspend fun deleteSession(macAddress: String)
 }

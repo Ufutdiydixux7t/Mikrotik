@@ -28,13 +28,16 @@ interface VoucherDao {
            WHERE code = :code
              AND isBlocked = 0
              AND bytesUsedSoFar < dataLimitBytes
-             AND (boundMacAddress IS NULL OR boundMacAddress = :macAddress)
+             AND (boundMacAddress IS NULL OR boundMacAddress COLLATE NOCASE = :macAddress)
              AND (firstUsedAt IS NULL OR :now < firstUsedAt + durationMinutes * 60000)"""
     )
     suspend fun activateVoucherIfValid(code: String, macAddress: String, now: Long): Int
 
-    @Query("SELECT * FROM vouchers WHERE boundMacAddress = :macAddress LIMIT 1")
+    @Query("SELECT * FROM vouchers WHERE boundMacAddress COLLATE NOCASE = :macAddress LIMIT 1")
     suspend fun getVoucherByMac(macAddress: String): VoucherEntity?
+
+    @Query("SELECT * FROM vouchers WHERE boundMacAddress COLLATE NOCASE = :macAddress")
+    suspend fun getVouchersByMac(macAddress: String): List<VoucherEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertVoucher(voucher: VoucherEntity)
