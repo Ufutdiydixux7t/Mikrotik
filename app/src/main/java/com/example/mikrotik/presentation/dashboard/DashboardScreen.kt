@@ -36,6 +36,18 @@ fun DashboardScreen(
     val activeSessions by viewModel.activeSessions.collectAsState()
     val blockedMacs by viewModel.blockedMacs.collectAsState()
     val deviceUsage by viewModel.deviceUsage.collectAsState()
+    val actionMessage by viewModel.actionMessage.collectAsState()
+
+    if (actionMessage != null) {
+        AlertDialog(
+            onDismissRequest = viewModel::clearActionMessage,
+            title = { Text("حالة الجهاز") },
+            text = { Text(actionMessage.orEmpty()) },
+            confirmButton = {
+                TextButton(onClick = viewModel::clearActionMessage) { Text("حسناً") }
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -134,7 +146,7 @@ fun DashboardScreen(
                 }
             } else {
                 activeSessions.forEach { session ->
-                    ActiveSessionCard(
+                    DeviceUsageCard(
                         session = session,
                         usage = deviceUsage[session.macAddress],
                         onBlock = { viewModel.blockDevice(session.macAddress) },
@@ -169,8 +181,10 @@ fun DashboardScreen(
                 }
             } else {
                 blockedMacs.forEach { blockedMac ->
-                    BlockedMacCard(
+                    BlockedDeviceCard(
                         blockedMac = blockedMac,
+                        displayName = viewModel.getDeviceName(blockedMac.macAddress),
+                        onRename = viewModel::saveDeviceName,
                         onUnblock = { viewModel.unblockDevice(blockedMac.macAddress) }
                     )
                 }
@@ -346,11 +360,390 @@ fun ActiveSessionCard(
     }
 }
 
+@Composable
+private fun DeviceUsageCard(
+    session: ActiveSessionEntity,
+    usage: DeviceUsageInfo?,
+    onBlock: () -> Unit,
+    onRename: (String, String) -> Unit
+) {
+    val fallbackName = "جهاز ${session.macAddress.takeLast(5)}"
+    val deviceName = usage?.displayName ?: fallbackName
+    val quotaBytes = usage?.quotaBytes ?: 0L
+    val usedBytes = (usage?.bytesUsed ?: 0L).coerceAtLeast(0L)
+    val usageFraction = if (quotaBytes > 0L) {
+        (usedBytes.toDouble() / quotaBytes.toDouble()).toFloat().coerceIn(0f, 1f)
+    } else 0f
+    val usageColor = when {
+        usageFraction >= 0.9f -> Color(0xFFC62828)
+        usageFraction >= 0.7f -> Color(0xFFF9A825)
+        else -> RichGreenButton
+    }
+
+    var showRenameDialog by remember(session.macAddress) { mutableStateOf(false) }
+    var showBlockDialog by remember(session.macAddress) { mutableStateOf(false) }
+    var editedName by remember(session.macAddress) { mutableStateOf("") }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, WatermarkLineColor, RoundedCornerShape(22.dp)),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(70.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(AppPalette.Mint),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = AppIcons.SystemMonitor,
+                        contentDescription = "جهاز متصل",
+                        tint = RichGreenButton,
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    Text(
+                        text = deviceName,
+                        modifier = Modifier.fillMaxWidth(),
+                        fontSize = 21.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = DeepGreenHeader,
+                        textAlign = TextAlign.Start
+                    )
+                    Spacer(modifier = Modifier.height(5.dp))
+                    Text(
+                        text = "IP: ${session.ipAddress}",
+                        modifier = Modifier.fillMaxWidth(),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 13.sp,
+                        color = AppPalette.Muted,
+                        textAlign = TextAlign.Start
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = "MAC: ${session.macAddress}",
+                        modifier = Modifier.fillMaxWidth(),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        color = AppPalette.Muted,
+                        textAlign = TextAlign.Start
+                    )
+                }
+            }
+
+            HorizontalDivider(color = WatermarkLineColor, thickness = 0.7.dp)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(
+                            progress = usageFraction,
+                            modifier = Modifier.size(96.dp),
+                            color = usageColor,
+                            trackColor = AppPalette.Mint,
+                            strokeWidth = 8.dp
+                        )
+                        Text(
+                            text = if (quotaBytes > 0L) "${(usageFraction * 100).toInt()}%" else "—",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = DeepGreenHeader
+                        )
+                    }
+                    Text(
+                        text = when {
+                            usage == null -> "جارٍ القياس"
+                            quotaBytes > 0L -> "${formatUsageBytes(usedBytes)} / ${formatUsageBytes(quotaBytes)}"
+                            usage.isMeasured -> formatUsageBytes(usedBytes)
+                            else -> "غير متاح"
+                        },
+                        fontSize = 10.sp,
+                        color = AppPalette.Muted,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    TextButton(
+                        onClick = {
+                            editedName = if (deviceName == fallbackName) "" else deviceName
+                            showRenameDialog = true
+                        },
+                        contentPadding = PaddingValues(horizontal = 5.dp, vertical = 7.dp)
+                    ) {
+                        Icon(
+                            imageVector = AppIcons.Edit,
+                            contentDescription = "تعديل الاسم",
+                            modifier = Modifier.size(17.dp),
+                            tint = RichGreenButton
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("الاسم", fontSize = 12.sp, color = RichGreenButton)
+                    }
+
+                    OutlinedButton(
+                        onClick = { showBlockDialog = true },
+                        shape = RoundedCornerShape(18.dp),
+                        contentPadding = PaddingValues(horizontal = 13.dp, vertical = 7.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC62828))
+                    ) {
+                        Icon(
+                            imageVector = AppIcons.Block,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text("حظر", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+    }
+
+    if (showRenameDialog) {
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("تعديل اسم الجهاز") },
+            text = {
+                OutlinedTextField(
+                    value = editedName,
+                    onValueChange = { editedName = it.take(40) },
+                    label = { Text("اسم الجهاز") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (editedName.isNotBlank()) onRename(session.macAddress, editedName)
+                        showRenameDialog = false
+                    },
+                    enabled = editedName.isNotBlank()
+                ) { Text("حفظ") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) { Text("إلغاء") }
+            }
+        )
+    }
+
+    if (showBlockDialog) {
+        AlertDialog(
+            onDismissRequest = { showBlockDialog = false },
+            title = { Text("حظر الجهاز؟") },
+            text = {
+                Text("سيتم قطع الإنترنت عن الجهاز وحذف البطاقة المتصل بها. عند رفع الحظر سيحتاج إلى تسجيل الدخول ببطاقة جديدة.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showBlockDialog = false
+                        onBlock()
+                    }
+                ) { Text("حظر وحذف البطاقة", color = Color(0xFFC62828)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBlockDialog = false }) { Text("إلغاء") }
+            }
+        )
+    }
+}
+
 private fun formatUsageBytes(bytes: Long): String = when {
     bytes >= 1024L * 1024L * 1024L -> "${"%.1f".format(bytes / (1024.0 * 1024 * 1024))} GB"
     bytes >= 1024L * 1024L -> "${"%.1f".format(bytes / (1024.0 * 1024))} MB"
     bytes >= 1024L -> "${"%.1f".format(bytes / 1024.0)} KB"
     else -> "$bytes B"
+}
+
+@Composable
+private fun BlockedDeviceCard(
+    blockedMac: BlockedMacEntity,
+    displayName: String,
+    onRename: (String, String) -> Unit,
+    onUnblock: () -> Unit
+) {
+    var showRenameDialog by remember(blockedMac.macAddress) { mutableStateOf(false) }
+    var editedName by remember(blockedMac.macAddress) { mutableStateOf(displayName) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, Color(0xFFFFCDD2), RoundedCornerShape(22.dp)),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(17.dp))
+                        .background(Color(0xFFFFEBEE)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = AppIcons.SystemMonitor,
+                        contentDescription = "جهاز محظور",
+                        tint = Color(0xFFC62828),
+                        modifier = Modifier.size(34.dp)
+                    )
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    Text(
+                        text = displayName,
+                        modifier = Modifier.fillMaxWidth(),
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = DeepGreenHeader,
+                        textAlign = TextAlign.Start
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "MAC: ${blockedMac.macAddress}",
+                        modifier = Modifier.fillMaxWidth(),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        color = AppPalette.Muted,
+                        textAlign = TextAlign.Start
+                    )
+                    Text(
+                        text = blockedMac.reason,
+                        modifier = Modifier.fillMaxWidth(),
+                        fontSize = 11.sp,
+                        color = Color(0xFFC62828),
+                        textAlign = TextAlign.Start
+                    )
+                }
+            }
+
+            HorizontalDivider(color = Color(0xFFFFCDD2), thickness = 0.7.dp)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFC62828))
+                    )
+                    Text("محظور", fontSize = 12.sp, color = Color(0xFFC62828), fontWeight = FontWeight.Bold)
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    TextButton(
+                        onClick = {
+                            editedName = displayName
+                            showRenameDialog = true
+                        },
+                        contentPadding = PaddingValues(horizontal = 5.dp, vertical = 7.dp)
+                    ) {
+                        Icon(
+                            imageVector = AppIcons.Edit,
+                            contentDescription = "تعديل الاسم",
+                            modifier = Modifier.size(17.dp),
+                            tint = RichGreenButton
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("الاسم", fontSize = 12.sp, color = RichGreenButton)
+                    }
+                    Button(
+                        onClick = onUnblock,
+                        colors = ButtonDefaults.buttonColors(containerColor = RichGreenButton),
+                        shape = RoundedCornerShape(18.dp),
+                        contentPadding = PaddingValues(horizontal = 15.dp, vertical = 8.dp)
+                    ) {
+                        Icon(
+                            imageVector = AppIcons.Login,
+                            contentDescription = null,
+                            modifier = Modifier.size(17.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("رفع الحظر", fontSize = 13.sp, color = Color.White)
+                    }
+                }
+            }
+        }
+    }
+
+    if (showRenameDialog) {
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("تعديل اسم الجهاز") },
+            text = {
+                OutlinedTextField(
+                    value = editedName,
+                    onValueChange = { editedName = it.take(40) },
+                    label = { Text("اسم الجهاز") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (editedName.isNotBlank()) onRename(blockedMac.macAddress, editedName)
+                        showRenameDialog = false
+                    },
+                    enabled = editedName.isNotBlank()
+                ) { Text("حفظ") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenameDialog = false }) { Text("إلغاء") }
+            }
+        )
+    }
 }
 
 @Composable

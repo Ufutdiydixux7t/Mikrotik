@@ -3,6 +3,7 @@ package com.example.mikrotik.presentation.dashboard
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.mikrotik.core.hotspot.HotspotController
 import com.example.mikrotik.core.network.IptablesManager
 import com.example.mikrotik.data.db.dao.ActiveSessionDao
 import com.example.mikrotik.data.db.dao.BlockedMacDao
@@ -34,6 +35,7 @@ class DashboardViewModel @Inject constructor(
     private val blockedMacDao: BlockedMacDao,
     private val voucherDao: VoucherDao,
     private val iptablesManager: IptablesManager,
+    private val hotspotController: HotspotController,
     @ApplicationContext context: Context
 ) : ViewModel() {
 
@@ -47,6 +49,9 @@ class DashboardViewModel @Inject constructor(
 
     private val _deviceUsage = MutableStateFlow<Map<String, DeviceUsageInfo>>(emptyMap())
     val deviceUsage: StateFlow<Map<String, DeviceUsageInfo>> = _deviceUsage.asStateFlow()
+
+    private val _actionMessage = MutableStateFlow<String?>(null)
+    val actionMessage: StateFlow<String?> = _actionMessage.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -90,18 +95,70 @@ class DashboardViewModel @Inject constructor(
 
     private fun nameKey(macAddress: String) = "name_${macAddress.lowercase().replace(':', '_')}"
 
+    fun getDeviceName(macAddress: String): String =
+        deviceNamePreferences.getString(nameKey(macAddress), null)
+            ?.trim()?.takeIf { it.isNotEmpty() }
+            ?: "جهاز ${macAddress.takeLast(5)}"
+
+    fun clearActionMessage() {
+        _actionMessage.value = null
+    }
+
     fun blockDevice(macAddress: String, reason: String = "حظر يدوياً من لوحة التحكم") {
         viewModelScope.launch {
-            iptablesManager.blockMacAddress(macAddress)
-            blockedMacDao.blockMac(BlockedMacEntity(macAddress = macAddress, reason = reason))
-            activeSessionDao.deactivateSession(macAddress)
+            try {
+                val session = activeSessionDao.getSessionByMac(macAddress)
+                val voucherCode = session?.voucherCode ?: voucherDao.getVoucherByMac(macAddress)?.code
+                if (voucherCode != null) voucherDao.blockVoucherForDeletion(voucherCode)
+                blockedMacDao.blockMac(BlockedMacEntity(macAddress = macAddress, reason = reason))
+
+                val ipBlocked = session?.let { iptablesManager.blockClientIpAddress(it.ipAddress) } ?: true
+                val accessRevoked = iptablesManager.revokeMacAddress(macAddress)
+                val macBlocked = iptablesManager.blockMacAddress(macAddress)
+                if (!ipBlocked || !accessRevoked || !macBlocked) {
+                    _actionMessage.value = "سُجل الجهاز ضمن قائمة الحظر، لكن تعذر تطبيق بعض قواعد الشبكة. أبقِ نقطة الاتصال مفعلة وحاول مجدداً."
+                    return@launch
+                }
+
+                if (voucherCode != null) voucherDao.deleteVoucher(voucherCode)
+                activeSessionDao.deactivateSession(macAddress)
+                hotspotController.requestClientReauthentication(macAddress)
+                _actionMessage.value = "تم حظر الجهاز وقطع الإنترنت عنه وحذف البطاقة المستخدمة. بعد رفع الحظر سيحتاج إلى بطاقة جديدة."
+            } catch (exception: Exception) {
+                _actionMessage.value = "تعذر حظر الجهاز: ${exception.message ?: "خطأ غير معروف"}"
+            }
         }
     }
 
     fun unblockDevice(macAddress: String) {
         viewModelScope.launch {
-            iptablesManager.unblockMacAddress(macAddress)
-            blockedMacDao.unblockMac(macAddress)
+            try {
+                val session = activeSessionDao.getSessionByMac(macAddress)
+                val voucherCode = session?.voucherCode ?: voucherDao.getVoucherByMac(macAddress)?.code
+                if (voucherCode != null) {
+                    voucherDao.blockVoucherForDeletion(voucherCode)
+                    voucherDao.deleteVoucher(voucherCode)
+                }
+
+                val ipUnblocked = session?.let { iptablesManager.unblockClientIpAddress(it.ipAddress) } ?: true
+                val accessRevoked = iptablesManager.revokeMacAddress(macAddress)
+                val macUnblocked = iptablesManager.unblockMacAddress(macAddress)
+                if (!ipUnblocked || !accessRevoked || !macUnblocked) {
+                    _actionMessage.value = "لم يكتمل رفع الحظر بسبب تعذر تحديث قواعد الشبكة. أعد المحاولة مع تشغيل Root ونقطة الاتصال."
+                    return@launch
+                }
+
+                activeSessionDao.deleteSession(macAddress)
+                blockedMacDao.unblockMac(macAddress)
+                val reconnectRequested = hotspotController.requestClientReauthentication(macAddress)
+                _actionMessage.value = if (reconnectRequested) {
+                    "تم رفع الحظر. سيُعاد فحص البوابة وسيحتاج الجهاز إلى تسجيل الدخول ببطاقة جديدة."
+                } else {
+                    "تم رفع الحظر، لكن تعذر إجبار الجهاز على إعادة الاتصال. سيحتاج إلى تسجيل الدخول عند محاولته فتح الإنترنت."
+                }
+            } catch (exception: Exception) {
+                _actionMessage.value = "تعذر رفع الحظر: ${exception.message ?: "خطأ غير معروف"}"
+            }
         }
     }
 }

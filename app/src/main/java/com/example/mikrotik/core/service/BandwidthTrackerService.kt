@@ -90,8 +90,21 @@ class BandwidthTrackerService : Service() {
         for (session in sessions) {
             val mac = session.macAddress
             if (blockedMacDao.isMacBlocked(mac)) {
-                iptablesManager.blockMacAddress(mac)
-                activeSessionDao.deactivateSession(mac)
+                val ipBlocked = iptablesManager.blockClientIpAddress(session.ipAddress)
+                val accessRevoked = iptablesManager.revokeMacAddress(mac)
+                val macBlocked = iptablesManager.blockMacAddress(mac)
+                if (ipBlocked && accessRevoked && macBlocked) {
+                    voucherDao.blockVoucherForDeletion(session.voucherCode)
+                    voucherDao.deleteVoucher(session.voucherCode)
+                    activeSessionDao.deactivateSession(mac)
+                    hotspotController.requestClientReauthentication(mac)
+                } else {
+                    Log.e(
+                        "BandwidthTracker",
+                        "Retrying device block because firewall rules were incomplete for $mac " +
+                            "(ipBlocked=$ipBlocked, accessRevoked=$accessRevoked, macBlocked=$macBlocked)"
+                    )
+                }
                 continue
             }
 

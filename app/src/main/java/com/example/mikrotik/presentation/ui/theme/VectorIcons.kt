@@ -637,6 +637,55 @@ object AppIcons {
             }
         }.build()
 
+    val Block: ImageVector
+        get() = ImageVector.Builder(
+            name = "Block",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color(0xFF0E6C7D)),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round
+            ) {
+                moveTo(12f, 2f)
+                arcTo(10f, 10f, 0f, true, false, 12f, 22f)
+                arcTo(10f, 10f, 0f, true, false, 12f, 2f)
+                close()
+                moveTo(5f, 5f)
+                lineTo(19f, 19f)
+            }
+        }.build()
+
+    val Edit: ImageVector
+        get() = ImageVector.Builder(
+            name = "Edit",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color(0xFF0E6C7D)),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round
+            ) {
+                moveTo(12f, 20f)
+                lineTo(21f, 20f)
+                moveTo(16.5f, 3.5f)
+                curveTo(17.3f, 2.7f, 18.7f, 2.7f, 19.5f, 3.5f)
+                curveTo(20.3f, 4.3f, 20.3f, 5.7f, 19.5f, 6.5f)
+                lineTo(8f, 18f)
+                lineTo(3f, 20f)
+                lineTo(5f, 15f)
+                close()
+            }
+        }.build()
+
     val Smartphone: ImageVector
         get() = ImageVector.Builder(
             name = "Smartphone",
