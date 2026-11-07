@@ -85,9 +85,9 @@ class DashboardViewModel @Inject constructor(
                     }
                 }
                 _deviceUsage.value = refreshedUsage
-<<<<<<< HEAD
+
                 delay(2_000)
-=======
+
 
                 val blockedCodes = mutableMapOf<String, String>()
                 for (blocked in blockedMacs.value.distinctBy { it.macAddress.lowercase() }) {
@@ -98,7 +98,6 @@ class DashboardViewModel @Inject constructor(
                 }
                 _blockedVoucherCodes.value = blockedCodes
                 delay(5_000)
->>>>>>> 48f919c4e86d1683c9d2132650c06b275bc40f16
             }
         }
     }
