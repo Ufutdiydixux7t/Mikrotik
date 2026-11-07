@@ -62,6 +62,7 @@ fun VoucherScreen(
     viewModel: VoucherViewModel
 ) {
     val vouchers by viewModel.vouchers.collectAsState()
+    val activeVoucherNames by viewModel.activeVoucherNames.collectAsState()
     val deleteError by viewModel.deleteError.collectAsState()
     val creationError by viewModel.creationError.collectAsState()
     val creationSuccess by viewModel.creationSuccess.collectAsState()
@@ -368,6 +369,7 @@ fun VoucherScreen(
                     emptyMessage = appText("لا توجد بطاقات غير مستخدمة حالياً.", "No unused vouchers." ),
                     statusTint = if (AppPalette.isDarkMode) Color(0xFFC2CDD2) else Color(0xFF757575),
                     statusBackground = if (AppPalette.isDarkMode) Color(0xFF303E44) else Color(0xFFF1F3F4),
+                    activeVoucherNames = activeVoucherNames,
                     deleteError = deleteError,
                     onCopy = copyVoucherCode,
                     onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
@@ -378,6 +380,7 @@ fun VoucherScreen(
                     emptyMessage = appText("لا توجد بطاقات نشطة حالياً.", "No active vouchers." ),
                     statusTint = if (AppPalette.isDarkMode) Color(0xFF83D8A0) else Color(0xFF2E7D32),
                     statusBackground = if (AppPalette.isDarkMode) Color(0xFF203D2B) else Color(0xFFE8F5E9),
+                    activeVoucherNames = activeVoucherNames,
                     deleteError = deleteError,
                     onCopy = copyVoucherCode,
                     onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
@@ -388,6 +391,7 @@ fun VoucherScreen(
                     emptyMessage = appText("لا توجد بطاقات منتهية حالياً.", "No expired vouchers." ),
                     statusTint = if (AppPalette.isDarkMode) Color(0xFFFF8A80) else Color(0xFFC62828),
                     statusBackground = if (AppPalette.isDarkMode) Color(0xFF492727) else Color(0xFFFFEBEE),
+                    activeVoucherNames = activeVoucherNames,
                     deleteError = deleteError,
                     onCopy = copyVoucherCode,
                     onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
@@ -445,6 +449,7 @@ private fun VoucherStatusSection(
     emptyMessage: String,
     statusTint: Color,
     statusBackground: Color,
+    activeVoucherNames: Map<String, String>,
     deleteError: String?,
     onCopy: (String) -> Unit,
     onDelete: (VoucherEntity, (Boolean) -> Unit) -> Unit
@@ -504,6 +509,7 @@ private fun VoucherStatusSection(
                     statusTitle = title,
                     statusTint = statusTint,
                     statusBackground = statusBackground,
+                    activeDeviceName = activeVoucherNames[voucher.code],
                     deleteError = deleteError,
                     onCopy = onCopy,
                     onDelete = onDelete
@@ -519,6 +525,7 @@ private fun VoucherItemCard(
     statusTitle: String,
     statusTint: Color,
     statusBackground: Color,
+    activeDeviceName: String?,
     deleteError: String?,
     onCopy: (String) -> Unit,
     onDelete: (VoucherEntity, (Boolean) -> Unit) -> Unit
@@ -587,6 +594,49 @@ private fun VoucherItemCard(
                 color = DeepGreenHeader,
                 textAlign = TextAlign.Start
             )
+
+            if (!activeDeviceName.isNullOrBlank()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    color = AppPalette.Mint.copy(alpha = 0.5f),
+                    border = BorderStroke(0.5.dp, RichGreenButton.copy(alpha = 0.3f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = AppIcons.ConnectedDevices,
+                                contentDescription = null,
+                                tint = RichGreenButton,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = activeDeviceName,
+                                fontFamily = FontFamily.Default,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = DeepGreenHeader
+                            )
+                        }
+                        Text(
+                            text = appText("المتصل (التسمية)", "Connected (Label)"),
+                            fontSize = 10.sp,
+                            color = RichGreenButton,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
             HorizontalDivider(color = WatermarkLineColor, thickness = 0.7.dp)
             Row(
                 modifier = Modifier.fillMaxWidth(),

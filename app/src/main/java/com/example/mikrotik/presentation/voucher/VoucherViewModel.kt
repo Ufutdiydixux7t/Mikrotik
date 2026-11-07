@@ -1,5 +1,6 @@
 package com.example.mikrotik.presentation.voucher
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mikrotik.core.hotspot.HotspotController
@@ -8,10 +9,12 @@ import com.example.mikrotik.data.db.dao.ActiveSessionDao
 import com.example.mikrotik.data.db.dao.VoucherDao
 import com.example.mikrotik.data.db.entity.VoucherEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -21,8 +24,25 @@ class VoucherViewModel @Inject constructor(
     private val voucherDao: VoucherDao,
     private val activeSessionDao: ActiveSessionDao,
     private val iptablesManager: IptablesManager,
-    private val hotspotController: HotspotController
+    private val hotspotController: HotspotController,
+    @ApplicationContext context: Context
 ) : ViewModel() {
+
+    private val deviceNamePreferences = context.getSharedPreferences("dashboard_device_names", Context.MODE_PRIVATE)
+
+    val activeVoucherNames: StateFlow<Map<String, String>> = activeSessionDao.getActiveSessionsFlow()
+        .map { sessions ->
+            val map = mutableMapOf<String, String>()
+            for (session in sessions) {
+                val key = "name_${session.macAddress.lowercase().replace(':', '_')}"
+                val name = deviceNamePreferences.getString(key, null)?.trim()?.takeIf { it.isNotEmpty() }
+                if (name != null) {
+                    map[session.voucherCode] = name
+                }
+            }
+            map
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     private val _deleteError = MutableStateFlow<String?>(null)
     val deleteError: StateFlow<String?> = _deleteError
