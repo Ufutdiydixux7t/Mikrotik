@@ -258,10 +258,14 @@ class BandwidthTrackerService : Service() {
 
         activeSessionDao.deactivateSession(mac)
         activeSessionDao.deleteSession(mac)
-        if (!hotspotController.requestClientReauthentication(mac)) {
-            Log.w("BandwidthTracker", "Client will rely on the next captive probe to reopen login for $mac")
-        }
-        Log.i("BandwidthTracker", "Expired voucher disconnected ($reason) for $mac")
+        // Keep the Wi-Fi association intact. Deauthing here makes some client OSes wait
+        // for a manual Wi-Fi reconnect before they run captive-portal detection again.
+        // The revoked MAC/IP firewall rules still block Internet, while unauthenticated
+        // HTTP requests are redirected to the local login portal.
+        Log.i(
+            "BandwidthTracker",
+            "Expired voucher blocked ($reason) for $mac; keeping Wi-Fi association for captive-portal recheck"
+        )
     }
 
     override fun onDestroy() {
