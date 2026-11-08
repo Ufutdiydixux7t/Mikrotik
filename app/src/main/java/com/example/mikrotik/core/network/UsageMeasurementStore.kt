@@ -17,6 +17,14 @@ data class UsageMeasurementSnapshot(
     val sourceCounterAvailable: Boolean
 )
 
+/** Independent cumulative source-traffic totals used only by the Home dashboard. */
+data class HomeUsageSnapshot(
+    val todayBytes: Long,
+    val monthBytes: Long,
+    val yearBytes: Long,
+    val counterAvailable: Boolean
+)
+
 /**
  * Stores two independent measurements: active upstream interface traffic and metered
  * hotspot-client traffic. Phone usage is an estimate: upstream minus client traffic.
@@ -32,6 +40,12 @@ object UsageMeasurementStore {
     private const val SOURCE_LAST_INTERFACE = "source_last_interface"
     private const val SOURCE_LAST_TOTAL = "source_last_total"
     private const val SOURCE_BASELINE_PENDING = "source_baseline_pending"
+
+    private const val HOME_PREFERENCES = "home_upstream_usage_history_v1"
+    private const val HOME_DAY_PREFIX = "day:"
+    private const val HOME_LAST_INTERFACE = "last_interface"
+    private const val HOME_LAST_TOTAL = "last_total"
+    private const val HOME_MIGRATION_COMPLETE = "source_history_migrated"
 
     private const val CLIENT_PREFERENCES = "voucher_client_usage_history_v2"
     private const val CLIENT_TOTAL_KEY = "voucher_total_since_reset"
@@ -59,9 +73,28 @@ object UsageMeasurementStore {
         )
     }
 
-    /** Samples cumulative counters for the active Internet interface; safe to call from UI and service. */
+    /** Reads the Home counter, which is deliberately separate from resettable measurement data. */
+    fun readHomeUsage(context: Context): HomeUsageSnapshot = synchronized(lock) {
+        val today = LocalDate.now(ZoneId.systemDefault())
+        val preferences = context.getSharedPreferences(HOME_PREFERENCES, Context.MODE_PRIVATE)
+        val monthPrefix = "$HOME_DAY_PREFIX${today.year}-${today.monthValue.toString().padStart(2, '0')}-"
+        val yearPrefix = "$HOME_DAY_PREFIX${today.year}-"
+        HomeUsageSnapshot(
+            todayBytes = preferences.getLong("$HOME_DAY_PREFIX$today", 0L),
+            monthBytes = sumForPrefix(preferences, monthPrefix),
+            yearBytes = sumForPrefix(preferences, yearPrefix),
+            counterAvailable = DeviceNetworkUsageReader.activeUpstreamCounter(context) != null
+        )
+    }
+
+    /**
+     * Samples the active Internet interface for both independent ledgers. The measurement ledger
+     * can be reset from Settings; the Home ledger has its own baseline and is never reset there.
+     */
     fun sampleSourceTraffic(context: Context): Boolean = synchronized(lock) {
         val counter = DeviceNetworkUsageReader.activeUpstreamCounter(context) ?: return@synchronized false
+
+        val todayKey = "${SOURCE_DAY_PREFIX}${LocalDate.now(ZoneId.systemDefault())}"
         val preferences = context.getSharedPreferences(SOURCE_PREFERENCES, Context.MODE_PRIVATE)
         val previousInterface = preferences.getString(SOURCE_LAST_INTERFACE, null)
         val previousTotal = preferences.getLong(SOURCE_LAST_TOTAL, -1L)
@@ -74,16 +107,51 @@ object UsageMeasurementStore {
             counter.totalBytes >= previousTotal -> counter.totalBytes - previousTotal
             else -> counter.totalBytes // Interface counters restarted (for example after reboot).
         }
-        val editor = preferences.edit()
+        val sourceEditor = preferences.edit()
             .putString(SOURCE_LAST_INTERFACE, counter.interfaceName)
             .putLong(SOURCE_LAST_TOTAL, counter.totalBytes)
             .remove(SOURCE_BASELINE_PENDING)
         if (delta > 0L) {
-            val todayKey = "$SOURCE_DAY_PREFIX${LocalDate.now(ZoneId.systemDefault())}"
             val todayTotal = preferences.getLong(todayKey, 0L)
-            editor.putLong(todayKey, saturatingAdd(todayTotal, delta))
+            sourceEditor.putLong(todayKey, saturatingAdd(todayTotal, delta))
         }
-        editor.apply()
+        sourceEditor.apply()
+
+        val homePreferences = context.getSharedPreferences(HOME_PREFERENCES, Context.MODE_PRIVATE)
+        val homePreviousInterface = homePreferences.getString(HOME_LAST_INTERFACE, null)
+        val homePreviousTotal = homePreferences.getLong(HOME_LAST_TOTAL, -1L)
+        val homeDelta = when {
+            homePreviousInterface != counter.interfaceName -> 0L
+            homePreviousTotal < 0L -> 0L
+            counter.totalBytes >= homePreviousTotal -> counter.totalBytes - homePreviousTotal
+            else -> counter.totalBytes
+        }
+        val homeEditor = homePreferences.edit()
+            .putString(HOME_LAST_INTERFACE, counter.interfaceName)
+            .putLong(HOME_LAST_TOTAL, counter.totalBytes)
+        if (!homePreferences.getBoolean(HOME_MIGRATION_COMPLETE, false)) {
+            preferences.all.forEach { (key, value) ->
+                if (key.startsWith(SOURCE_DAY_PREFIX) && value is Long) {
+                    val homeKey = "$HOME_DAY_PREFIX${key.removePrefix(SOURCE_DAY_PREFIX)}"
+                    val existingHomeTotal = homePreferences.getLong(homeKey, 0L)
+                    homeEditor.putLong(homeKey, saturatingAdd(existingHomeTotal, value))
+                }
+            }
+            if (delta > 0L) {
+                val homeTodayKey = "$HOME_DAY_PREFIX${LocalDate.now(ZoneId.systemDefault())}"
+                val migratedToday = saturatingAdd(
+                    homePreferences.getLong(homeTodayKey, 0L),
+                    preferences.getLong(todayKey, 0L)
+                )
+                homeEditor.putLong(homeTodayKey, saturatingAdd(migratedToday, delta))
+            }
+            homeEditor.putBoolean(HOME_MIGRATION_COMPLETE, true)
+        } else if (homeDelta > 0L) {
+            val homeTodayKey = "$HOME_DAY_PREFIX${LocalDate.now(ZoneId.systemDefault())}"
+            val homeTodayTotal = homePreferences.getLong(homeTodayKey, 0L)
+            homeEditor.putLong(homeTodayKey, saturatingAdd(homeTodayTotal, homeDelta))
+        }
+        homeEditor.apply()
         true
     }
 

@@ -1,6 +1,7 @@
 package com.example.mikrotik.core.captive
 
 import android.util.Log
+import android.os.SystemClock
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -91,6 +92,7 @@ class CaptivePortalServer @Inject constructor(
 
                     // Login submission
                     post("/login") {
+                        val loginStartedAt = SystemClock.elapsedRealtime()
                         val params = call.receiveParameters()
                         val code = params["code"].orEmpty().trim().uppercase(Locale.ROOT)
                         Log.d("CaptivePortalServer", "Voucher login attempt submitted")
@@ -104,19 +106,23 @@ class CaptivePortalServer @Inject constructor(
                             val remoteHost = requestOrigin.remoteHost
                             val clientIp = extractIpv4(remoteHost)
                                 ?: extractIpv4(remoteAddress)
+                            val localHotspotIp = extractIpv4(requestOrigin.localHost) ?: getActiveHotspotIpAddress()
+                            val hotspotInterface = getInterfaceNameForIpv4(localHotspotIp)
                             val client = clientIp?.let { ip ->
-                                val mac = clientDiscoveryManager.findMacAddressForIp(ip)
-                                val discovered = if (mac == null) {
-                                    clientDiscoveryManager.getConnectedDevices().firstOrNull { it.ipAddress == ip }
-                                } else null
-                                val resolvedMac = mac ?: discovered?.macAddress
-                                resolvedMac?.let {
-                                    discovered ?: com.example.mikrotik.domain.model.ConnectedDevice(
-                                        ipAddress = ip,
-                                        macAddress = it,
-                                        connectionState = "CONNECTED",
-                                        interfaceName = "hotspot"
-                                    )
+                                hotspotInterface?.let { apInterface ->
+                                    val mac = clientDiscoveryManager.findMacAddressForIp(ip, apInterface)
+                                    val discovered = if (mac == null) {
+                                        clientDiscoveryManager.getConnectedDevices(apInterface).firstOrNull { it.ipAddress == ip }
+                                    } else null
+                                    val resolvedMac = mac ?: discovered?.macAddress
+                                    resolvedMac?.let { resolved ->
+                                        discovered ?: com.example.mikrotik.domain.model.ConnectedDevice(
+                                            ipAddress = ip,
+                                            macAddress = resolved,
+                                            connectionState = "CONNECTED",
+                                            interfaceName = apInterface
+                                        )
+                                    }
                                 }
                             }
                             if (client == null) {
@@ -151,34 +157,20 @@ class CaptivePortalServer @Inject constructor(
 
                             if (activated > 0 && voucher != null) {
                                 val previousSessions = activeSessionDao.getSessionsByMac(clientMac)
-                                previousSessions
+                                val previousIps = previousSessions
                                     .map { it.ipAddress }
                                     .distinct()
-                                    .filter { it != client.ipAddress }
-                                    .forEach { previousIp ->
-                                        if (!iptablesManager.unblockClientIpAddress(previousIp)) {
-                                            Log.w(
-                                                "CaptivePortalServer",
-                                                "Could not clear the expired client's previous IP block ($previousIp)"
-                                            )
-                                        }
-                                    }
-                                if (!iptablesManager.unblockClientIpAddress(client.ipAddress)) {
+                                    .filter { it != client.ipAddress && it.matches(Regex("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$")) }
+                                if (!iptablesManager.prepareClientForVoucherLogin(clientMac, client.ipAddress, previousIps)) {
                                     Log.e(
                                         "CaptivePortalServer",
-                                        "Could not clear the expired client's IP block (${client.ipAddress})"
+                                        "Could not prepare firewall rules for voucher login (${client.ipAddress})"
                                     )
                                     call.respondText(
-                                        getHtmlResultPage("تعذر فتح الاتصال", "تعذر إزالة حظر الاتصال المؤقت. أعد المحاولة أو أعد تشغيل نقطة الاتصال.", false),
+                                        getHtmlResultPage("تعذر فتح الاتصال", "تعذر تجهيز قواعد الاتصال. أعد المحاولة أو راجع التشخيص.", false),
                                         contentType = ContentType.Text.Html
                                     )
                                     return@post
-                                }
-                                if (!iptablesManager.unblockMacAddress(clientMac)) {
-                                    Log.w("CaptivePortalServer", "Could not clear a stale temporary block before voucher login")
-                                }
-                                if (!iptablesManager.resetDeviceUsageCounters(clientMac, client.ipAddress)) {
-                                    Log.w("CaptivePortalServer", "Could not reset traffic counters for a new voucher")
                                 }
                                 // Normalize the database identity and remove legacy case-variant duplicates.
                                 activeSessionDao.deleteSessionsByMac(clientMac)
@@ -189,12 +181,15 @@ class CaptivePortalServer @Inject constructor(
                                         voucherCode = code
                                     )
                                 )
-                                val isAllowed = iptablesManager.authorizeMacAddress(clientMac)
+                                val isAllowed = iptablesManager.authorizeMacAddress(clientMac, client.ipAddress)
                                 if (!isAllowed) {
                                     Log.e(
                                         "CaptivePortalServer",
                                         "Could not apply forwarding allow-rules for client ip=${client.ipAddress}"
                                     )
+                                    if (!iptablesManager.revokeMacAddress(clientMac)) {
+                                        Log.e("CaptivePortalServer", "Could not roll back partial allow-rules for the failed login")
+                                    }
                                     activeSessionDao.deactivateSession(clientMac)
                                     call.respondText(
                                         getHtmlResultPage("تعذر فتح الاتصال", "تم التحقق من البطاقة، لكن تعذر تطبيق قاعدة السماح على الهاتف. أعد المحاولة أو راجع التشخيص.", false),
@@ -217,6 +212,10 @@ class CaptivePortalServer @Inject constructor(
                                     )
                                     return@post
                                 }
+                                Log.i(
+                                    "CaptivePortalServer",
+                                    "Voucher login completed in ${SystemClock.elapsedRealtime() - loginStartedAt} ms"
+                                )
                                 call.respondText(
                                     getHtmlResultPage(
                                         "تم تسجيل الدخول بنجاح",
@@ -298,6 +297,24 @@ class CaptivePortalServer @Inject constructor(
     fun getLocalAccessUrl(): String {
         val ip = getActiveHotspotIpAddress()
         return "http://$ip:$port"
+    }
+
+    private fun getInterfaceNameForIpv4(ipAddress: String): String? {
+        return try {
+            val interfaces = NetworkInterface.getNetworkInterfaces() ?: return null
+            while (interfaces.hasMoreElements()) {
+                val networkInterface = interfaces.nextElement()
+                val addresses = networkInterface.inetAddresses
+                while (addresses.hasMoreElements()) {
+                    val address = addresses.nextElement()
+                    if (address.hostAddress?.substringBefore('%') == ipAddress) return networkInterface.name
+                }
+            }
+            null
+        } catch (e: Exception) {
+            Log.w("CaptivePortalServer", "Could not map hotspot IP to a network interface", e)
+            null
+        }
     }
 
     /**
@@ -492,6 +509,7 @@ class CaptivePortalServer @Inject constructor(
                     box-shadow: 0 8px 18px var(--portal-button-shadow);
                 }
                 .btn-submit:active { background: var(--portal-accent-dark); }
+                .btn-submit:disabled { opacity: 0.72; cursor: wait; }
                 .footer {
                     position: relative;
                     z-index: 1;
@@ -552,7 +570,7 @@ class CaptivePortalServer @Inject constructor(
                     <div class="login-title">تسجيل الدخول</div>
                     <div class="login-subtitle">أدخل البطاقة للاتصال بالإنترنت</div>
 
-                    <form action="/login" method="POST">
+                    <form id="login-form" action="/login" method="POST">
                         <div class="input-group">
                             <svg class="input-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                 <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/>
@@ -560,8 +578,15 @@ class CaptivePortalServer @Inject constructor(
                             </svg>
                             <input type="text" name="code" class="input-field" placeholder="أدخل الكرت هنا" required autocomplete="off" dir="rtl">
                         </div>
-                        <button type="submit" class="btn-submit">اتصال</button>
+                        <button id="login-submit" type="submit" class="btn-submit">اتصال</button>
                     </form>
+                    <script>
+                        document.getElementById('login-form').addEventListener('submit', function() {
+                            var button = document.getElementById('login-submit');
+                            button.disabled = true;
+                            button.textContent = 'جارٍ الاتصال…';
+                        });
+                    </script>
                 </section>
             </main>
 
@@ -590,6 +615,9 @@ class CaptivePortalServer @Inject constructor(
         val color = if (isSuccess) theme.accent else "#C62828"
         val continueUrl = if (isSuccess) "http://neverssl.com/" else "/"
         val continueLabel = if (isSuccess) "انتقال إلى الرئيسية" else "العودة"
+        val autoRedirect = if (isSuccess) {
+            "<script>window.setTimeout(function(){ window.location.replace('$continueUrl'); }, 700);</script>"
+        } else ""
         val successIcon = if (isSuccess) {
             """
             <div class="success-icon" role="img" aria-label="تم بنجاح">
@@ -661,6 +689,7 @@ class CaptivePortalServer @Inject constructor(
                     font-weight: bold;
                     box-sizing: border-box;
                 }
+                .redirect-note { margin: 14px 0 0; color: #64717D; font-size: 13px; }
             </style>
         </head>
         <body>
@@ -670,11 +699,13 @@ class CaptivePortalServer @Inject constructor(
                     <div class="title">$safeTitle</div>
                     <div class="message">$safeMessage</div>
                     <a href="$continueUrl" class="btn-back">$continueLabel</a>
+                    ${if (isSuccess) "<div class=\"redirect-note\">جارٍ نقلك إلى الإنترنت…</div>" else ""}
                 </div>
             </div>
             <div style="margin-bottom: 20px; font-size: 12px; color: #888888;">
                 Powered by Hotspot
             </div>
+            $autoRedirect
         </body>
         </html>
         """.trimIndent()

@@ -165,12 +165,12 @@ class HomeViewModel @Inject constructor(
 
     private fun refreshTotalUsage() {
         UsageMeasurementStore.sampleSourceTraffic(context)
-        val measurement = UsageMeasurementStore.read(context)
+        val homeUsage = UsageMeasurementStore.readHomeUsage(context)
         _usageSummary.value = TotalUsageSummary(
-            todayBytes = measurement.sourceTodayBytes,
-            monthBytes = measurement.sourceMonthBytes,
-            yearBytes = measurement.sourceYearBytes,
-            isAvailable = measurement.sourceCounterAvailable
+            todayBytes = homeUsage.todayBytes,
+            monthBytes = homeUsage.monthBytes,
+            yearBytes = homeUsage.yearBytes,
+            isAvailable = homeUsage.counterAvailable
         )
     }
 

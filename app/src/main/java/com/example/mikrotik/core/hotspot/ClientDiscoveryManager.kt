@@ -16,30 +16,34 @@ class ClientDiscoveryManager @Inject constructor(
     private val stationMacRegex = Regex("(?i)[0-9a-f]{2}(?::[0-9a-f]{2}){5}")
     private val activeNeighborStates = setOf("REACHABLE", "DELAY", "PROBE")
 
-    /** Resolves one client directly from neighbor, ARP, and DHCP lease tables. */
-    suspend fun findMacAddressForIp(ipAddress: String): String? = withContext(Dispatchers.IO) {
-        if (!isValidIpv4(ipAddress)) return@withContext null
+    /** Resolves a client from neighbor/ARP entries scoped to the actual hotspot interface. */
+    suspend fun findMacAddressForIp(ipAddress: String, interfaceName: String): String? = withContext(Dispatchers.IO) {
+        if (!isValidIpv4(ipAddress) || !interfaceNameRegex.matches(interfaceName)) return@withContext null
 
-        val neighbor = rootShellManager.executeCommand("ip neigh show to $ipAddress")
-        val neighborMac = neighbor.stdout.asSequence()
-            .flatMap { it.split("\\s+".toRegex()).asSequence() }
-            .map { it.lowercase() }
-            .firstOrNull { macRegex.matches(it) && it != "00:00:00:00:00:00" }
+        val result = rootShellManager.executeCommand(
+            "ip neigh show to $ipAddress dev $interfaceName 2>/dev/null; " +
+                "cat /proc/net/arp 2>/dev/null"
+        )
+        val lines = result.stdout
+
+        val neighborMac = lines.asSequence()
+            .map { it.split("\\s+".toRegex()).filter(String::isNotBlank) }
+            .firstOrNull { it.firstOrNull() == ipAddress && it.contains("dev") && it.getOrNull(it.indexOf("dev") + 1) == interfaceName && it.contains("lladdr") }
+            ?.firstOrNull { macRegex.matches(it) && it != "00:00:00:00:00:00" }
+            ?.lowercase()
         if (neighborMac != null) return@withContext neighborMac
 
-        val arp = rootShellManager.executeCommand("cat /proc/net/arp")
-        val arpMac = arp.stdout.asSequence().drop(1)
+        val arpMac = lines.asSequence()
             .map { it.trim().split("\\s+".toRegex()) }
-            .firstOrNull { it.size >= 4 && it[0] == ipAddress }
+            .firstOrNull {
+                it.size >= 6 && it[0] == ipAddress && it[1].startsWith("0x") &&
+                    (it[2].removePrefix("0x").toIntOrNull(16)?.let { flags -> flags and 0x2 != 0 } == true) &&
+                    it[5] == interfaceName
+            }
             ?.get(3)?.lowercase()
             ?.takeIf { macRegex.matches(it) && it != "00:00:00:00:00:00" }
         if (arpMac != null) return@withContext arpMac
-
-        val leases = rootShellManager.executeCommand("cat /data/misc/dhcp/dnsmasq.leases")
-        leases.stdout.asSequence()
-            .map { it.trim().split("\\s+".toRegex()) }
-            .firstOrNull { it.size >= 3 && it[2] == ipAddress && macRegex.matches(it[1]) }
-            ?.get(1)?.lowercase()
+        null
     }
 
     private fun isValidIpv4(value: String): Boolean {
@@ -129,8 +133,15 @@ class ClientDiscoveryManager @Inject constructor(
                 if (tokens.size >= 4) {
                     val mac = tokens[1].lowercase()
                     val name = tokens[3]
-                    if (mac in devices && name != "*") {
-                        devices[mac] = devices.getValue(mac).copy(deviceName = name)
+                    val leaseIp = tokens[2]
+                    val existing = devices[mac]
+                    if (existing != null && associatedMacs != null && mac in associatedMacs && isValidIpv4(leaseIp)) {
+                        devices[mac] = existing.copy(
+                            ipAddress = leaseIp,
+                            deviceName = name.takeIf { it != "*" } ?: existing.deviceName
+                        )
+                    } else if (existing != null && name != "*") {
+                        devices[mac] = existing.copy(deviceName = name)
                     }
                 }
             }

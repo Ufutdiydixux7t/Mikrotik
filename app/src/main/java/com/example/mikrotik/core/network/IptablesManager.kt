@@ -221,14 +221,26 @@ class IptablesManager @Inject constructor(
     }
 
     /** Adds an authenticated client's MAC to both IPv4/IPv6 forwarding allow-lists and portal bypass. */
-    suspend fun authorizeMacAddress(macAddress: String): Boolean {
+    suspend fun authorizeMacAddress(macAddress: String, ipAddress: String): Boolean {
         val mac = macAddress.lowercase()
-        if (!macPattern.matches(mac)) return false
+        val octets = ipAddress.split('.')
+        if (!macPattern.matches(mac) || octets.size != 4 ||
+            octets.any { it.toIntOrNull()?.let { value -> value in 0..255 } != true }
+        ) return false
 
-        val v4 = ensureMacRule("iptables", filterChainV4, mac, "ACCEPT")
-        val v6 = ensureMacRule("ip6tables", filterChainV6, mac, "ACCEPT")
-        val nat = ensureMacRule("iptables -t nat", natChain, mac, "RETURN")
-        return v4 && v6 && nat
+        val commands = mutableListOf(
+            "iptables -S MM_CAPTIVE_R >/dev/null 2>&1 || exit 1",
+            "iptables -C $filterChainV4 -m mac --mac-source $mac -j ACCEPT || " +
+                "iptables -I $filterChainV4 1 -m mac --mac-source $mac -j ACCEPT",
+            "ip6tables -C $filterChainV6 -m mac --mac-source $mac -j ACCEPT || " +
+                "ip6tables -I $filterChainV6 1 -m mac --mac-source $mac -j ACCEPT",
+            "iptables -t nat -C $natChain -m mac --mac-source $mac -j RETURN || " +
+                "iptables -t nat -I $natChain 1 -m mac --mac-source $mac -j RETURN"
+        )
+        commands += "{ i=0; while iptables -C MM_CAPTIVE_R -d $ipAddress -j DROP >/dev/null 2>&1; do " +
+            "i=\$((i+1)); [ \$i -le $MAX_DUPLICATE_RULE_REMOVALS ] || exit 1; " +
+            "iptables -D MM_CAPTIVE_R -d $ipAddress -j DROP || exit 1; done; }"
+        return rootShellManager.executeCommand("( ${commands.joinToString(" && ")} )").isSuccess
     }
 
     /** Reads forwarded upload/download byte counters for one authenticated hotspot client. */
@@ -302,6 +314,54 @@ class IptablesManager @Inject constructor(
         )
         val download = resetDeviceDownloadCounter(ipAddress)
         return v4 && v6 && nat && download
+    }
+
+    /** Removes stale expiry/allow rules and resets counters in one root-shell round trip. */
+    suspend fun prepareClientForVoucherLogin(
+        macAddress: String,
+        ipAddress: String,
+        previousIpAddresses: List<String> = emptyList()
+    ): Boolean {
+        val mac = macAddress.lowercase()
+        fun validIpv4(value: String): Boolean {
+            val octets = value.split('.')
+            return octets.size == 4 && octets.all { it.toIntOrNull()?.let { part -> part in 0..255 } == true }
+        }
+        if (!macPattern.matches(mac) || !validIpv4(ipAddress)) return false
+        val previousIps = previousIpAddresses.filter(::validIpv4).distinct()
+
+        fun removeAll(checkRule: String, deleteRule: String): String =
+            "{ i=0; while $checkRule >/dev/null 2>&1; do i=\$((i+1)); " +
+                "[ \$i -le $MAX_DUPLICATE_RULE_REMOVALS ] || exit 1; " +
+                "$deleteRule || exit 1; done; }"
+
+        val commands = mutableListOf(
+            "iptables -S $filterChainV4 >/dev/null 2>&1 || exit 1",
+            "ip6tables -S $filterChainV6 >/dev/null 2>&1 || exit 1",
+            "iptables -t nat -S $natChain >/dev/null 2>&1 || exit 1",
+            "iptables -S MM_CAPTIVE_R >/dev/null 2>&1 || exit 1"
+        )
+        previousIps.forEach { ip ->
+            val check = "iptables -C MM_CAPTIVE_R -d $ip -j DROP"
+            commands += removeAll(check, "iptables -D MM_CAPTIVE_R -d $ip -j DROP")
+        }
+
+        val currentDownloadCheck =
+            "iptables -C MM_CAPTIVE_R -d $ipAddress -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT"
+        commands += removeAll(
+            currentDownloadCheck,
+            "iptables -D MM_CAPTIVE_R -d $ipAddress -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT"
+        )
+        listOf("iptables" to filterChainV4, "ip6tables" to filterChainV6).forEach { (binary, chain) ->
+            listOf("DROP", "ACCEPT").forEach { target ->
+                val check = "$binary -C $chain -m mac --mac-source $mac -j $target"
+                commands += removeAll(check, "$binary -D $chain -m mac --mac-source $mac -j $target")
+            }
+        }
+        val natCheck = "iptables -t nat -C $natChain -m mac --mac-source $mac -j RETURN"
+        commands += removeAll(natCheck, "iptables -t nat -D $natChain -m mac --mac-source $mac -j RETURN")
+
+        return rootShellManager.executeCommand("( ${commands.joinToString(" && ")} )").isSuccess
     }
 
     private suspend fun removeRuleIfPresent(checkCommand: String, deleteCommand: String): Boolean {
@@ -442,12 +502,6 @@ class IptablesManager @Inject constructor(
         return true
     }
 
-    private suspend fun ensureMacRule(binary: String, chain: String, mac: String, target: String): Boolean {
-        val check = "$binary -C $chain -m mac --mac-source $mac -j $target"
-        if (rootShellManager.executeCommand(check).isSuccess) return true
-        return rootShellManager.executeCommand("$binary -I $chain 1 -m mac --mac-source $mac -j $target").isSuccess
-    }
-
     private suspend fun setMacRule(
         binary: String,
         chain: String,
@@ -456,20 +510,31 @@ class IptablesManager @Inject constructor(
         add: Boolean
     ): Boolean {
         val rule = "$binary -C $chain -m mac --mac-source $mac -j $target"
-        val exists = rootShellManager.executeCommand(rule).isSuccess
-        if (add && !exists) {
-            return rootShellManager.executeCommand("$binary -I $chain 1 -m mac --mac-source $mac -j $target").isSuccess
+        val check = rootShellManager.executeCommand(rule)
+        if (add) {
+            if (check.isSuccess) return true
+            val inserted = rootShellManager.executeCommand("$binary -I $chain 1 -m mac --mac-source $mac -j $target")
+            return inserted.isSuccess && rootShellManager.executeCommand(rule).isSuccess
         }
-        if (!add && exists) {
-            repeat(MAX_DUPLICATE_RULE_REMOVALS) {
-                if (!rootShellManager.executeCommand(rule).isSuccess) return true
-                if (!rootShellManager.executeCommand("$binary -D $chain -m mac --mac-source $mac -j $target").isSuccess) {
-                    return false
-                }
+
+        suspend fun ruleStillPresent(): Boolean? {
+            val snapshot = rootShellManager.executeCommand("$binary -S $chain")
+            if (!snapshot.isSuccess) return null
+            return snapshot.stdout.any { line ->
+                line.contains("-m mac") &&
+                    line.contains("--mac-source $mac", ignoreCase = true) &&
+                    line.trim().endsWith("-j $target", ignoreCase = true)
             }
-            return !rootShellManager.executeCommand(rule).isSuccess
         }
-        return true
+
+        if (!check.isSuccess) return ruleStillPresent() == false
+        repeat(MAX_DUPLICATE_RULE_REMOVALS) {
+            if (!rootShellManager.executeCommand(rule).isSuccess) return ruleStillPresent() == false
+            if (!rootShellManager.executeCommand("$binary -D $chain -m mac --mac-source $mac -j $target").isSuccess) {
+                return false
+            }
+        }
+        return ruleStillPresent() == false
     }
 
     private companion object {
