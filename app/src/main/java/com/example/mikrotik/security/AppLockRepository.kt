@@ -70,7 +70,7 @@ class AppLockRepository(context: Context) {
             )
         }
 
-        preferences.edit().apply {
+        return preferences.edit().apply {
             putBoolean(KEY_ENABLED, true)
             putInt(KEY_USER_COUNT, users.size)
             putString(KEY_POLICY, policy.key)
