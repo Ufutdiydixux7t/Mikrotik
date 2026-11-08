@@ -835,7 +835,7 @@ fun AboutUsDetailScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         BackToSettingsButton(onClick = onBack)
 
@@ -848,141 +848,88 @@ fun AboutUsDetailScreen(
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier.fillMaxWidth().padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(
-                    imageVector = AppIcons.Info,
-                    contentDescription = null,
-                    tint = RichGreenButton,
-                    modifier = Modifier.size(48.dp)
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
                 Text(
-                    text = "Mini MikroTik",
-                    fontSize = 22.sp,
+                    text = appText("عن المشروع", "About the project"),
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = DeepGreenHeader
                 )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
                 Text(
-                    text = appText("نظام إدارة الشبكات والروتر المصغر", "A compact router and network management system"),
-                    fontSize = 13.sp,
-                    color = AppPalette.Muted
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = appText("نظرة عن المشروع", "About this project"),
-                    fontSize = 16.sp,
+                    text = "Mini MikroTik",
+                    fontSize = 21.sp,
                     fontWeight = FontWeight.Bold,
-                    color = DeepGreenHeader,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Start
+                    color = RichGreenButton
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
                 Text(
-                    text = appText("نظام متكامل لإدارة شبكات الهوتسبوت (Hotspot) وتوليد وإنشاء كروت وبطاقات الإنترنت، وتتبع الجلسات النشطة واستهلاك البيانات للمشتركين، بالإضافة إلى التحكم بإعدادات التوجيه والجدار الناري عبر صلاحيات الـ Root.", "A complete hotspot management system for creating internet vouchers, tracking active sessions and client usage, and managing routing and firewall settings with root access."),
+                    text = appText(
+                        "نظام متكامل لإدارة شبكات الهوتسبوت (Hotspot)، وإنشاء بطاقات الإنترنت، ومتابعة الجلسات النشطة واستهلاك البيانات، إلى جانب إدارة إعدادات التوجيه والجدار الناري.",
+                        "A complete hotspot management system for creating internet vouchers, tracking active sessions and data usage, and managing routing and firewall settings."
+                    ),
                     fontSize = 14.sp,
                     color = AppPalette.Muted,
                     lineHeight = 22.sp,
                     textAlign = TextAlign.Start
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
-
+                Spacer(modifier = Modifier.height(4.dp))
                 HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
-
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = appText("التواصل", "Contact"),
+                    text = appText("عني", "About me"),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = DeepGreenHeader,
+                    color = DeepGreenHeader
+                )
+                Text(
+                    text = appText("م/ محمد المدي", "Eng. Mohammad Al-Madhi"),
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = DeepGreenHeader
+                )
+                Text(
+                    text = appText(
+                        "مطور نظام Mini MikroTik.",
+                        "Developer of the Mini MikroTik system."
+                    ),
+                    fontSize = 13.sp,
+                    lineHeight = 20.sp,
+                    color = AppPalette.Muted
+                )
+
+                Spacer(modifier = Modifier.height(2.dp))
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Start
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                ContactLinkRow(
-                    icon = AppIcons.Facebook,
-                    iconColor = Color(0xFF1877F2),
-                    title = appText("فيسبوك", "Facebook"),
-                    value = appText("صفحة Facebook الرسمية", "Facebook profile"),
-                    onClick = {
-                        openContactTarget(
-                            context,
-                            "https://www.facebook.com/profile.php?id=100043079018929",
-                            cannotOpenContact
-                        )
-                    }
-                )
-                HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
-                ContactLinkRow(
-                    icon = AppIcons.Email,
-                    iconColor = Color(0xFF607D8B),
-                    title = appText("البريد الإلكتروني", "Email"),
-                    value = "doctormohammed7788@gmail.com",
-                    onClick = {
-                        openContactTarget(
-                            context,
-                            "mailto:doctormohammed7788@gmail.com",
-                            cannotOpenContact
-                        )
-                    }
-                )
-                HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
-                ContactLinkRow(
-                    icon = AppIcons.WhatsApp,
-                    iconColor = Color(0xFF25D366),
-                    title = appText("واتساب", "WhatsApp"),
-                    value = "+20 10 31697230",
-                    onClick = {
-                        openContactTarget(
-                            context,
-                            "https://wa.me/201031697230",
-                            cannotOpenContact
-                        )
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = PageBackground)
+                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = appText("تم تطوير هذا النظام بواسطة م/محمد المدي", "Developed by Eng. Mohammad Al-Madhi"),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = DeepGreenHeader,
-                            textAlign = TextAlign.Center
-                        )
-                    }
+                    ContactIconButton(
+                        icon = AppIcons.Facebook,
+                        iconColor = Color(0xFF1877F2),
+                        contentDescription = appText("فيسبوك", "Facebook"),
+                        uri = "https://www.facebook.com/profile.php?id=100043079018929",
+                        unavailableMessage = cannotOpenContact,
+                        context = context
+                    )
+                    ContactIconButton(
+                        icon = AppIcons.Email,
+                        iconColor = Color(0xFF607D8B),
+                        contentDescription = appText("البريد الإلكتروني", "Email"),
+                        uri = "mailto:doctormohammed7788@gmail.com",
+                        unavailableMessage = cannotOpenContact,
+                        context = context
+                    )
+                    ContactIconButton(
+                        icon = AppIcons.WhatsApp,
+                        iconColor = Color(0xFF25D366),
+                        contentDescription = appText("واتساب", "WhatsApp"),
+                        uri = "https://wa.me/201031697230",
+                        unavailableMessage = cannotOpenContact,
+                        context = context
+                    )
                 }
             }
         }
@@ -990,48 +937,26 @@ fun AboutUsDetailScreen(
 }
 
 @Composable
-private fun ContactLinkRow(
+private fun ContactIconButton(
     icon: ImageVector,
     iconColor: Color,
-    title: String,
-    value: String,
-    onClick: () -> Unit
+    contentDescription: String,
+    uri: String,
+    unavailableMessage: String,
+    context: Context
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    Surface(
+        onClick = { openContactTarget(context, uri, unavailableMessage) },
+        modifier = Modifier.size(38.dp),
+        shape = RoundedCornerShape(50),
+        color = iconColor
     ) {
-        Surface(
-            onClick = onClick,
-            modifier = Modifier.size(44.dp),
-            shape = RoundedCornerShape(50),
-            color = iconColor
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = title,
-                    tint = Color.White,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-        }
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(
-                text = title,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = DeepGreenHeader
-            )
-            Text(
-                text = value,
-                fontSize = 12.sp,
-                lineHeight = 17.sp,
-                color = AppPalette.Muted
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = Color.White,
+                modifier = Modifier.size(19.dp)
             )
         }
     }
