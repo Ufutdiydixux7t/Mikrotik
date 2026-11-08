@@ -164,6 +164,9 @@ fun UsageMeasurementScreen(
         }
     }
 
+    val resetSuccessText = appText("تم تصفير الأرقام وبدأ القياس من جديد.", "Counters reset; measurement has restarted.")
+    val resetPendingText = appText("تم التصفير؛ سيبدأ قياس الهاتف عند توفر عداد النظام.", "Reset complete; phone measurement will resume when the system counter is available.")
+
     if (showResetConfirmation) {
         AlertDialog(
             onDismissRequest = { showResetConfirmation = false },
@@ -185,9 +188,9 @@ fun UsageMeasurementScreen(
                         val deviceCounterAvailable = UsageMeasurementStore.reset(context)
                         snapshot = UsageMeasurementStore.read(context)
                         resetMessage = if (deviceCounterAvailable) {
-                            appText("تم تصفير الأرقام وبدأ القياس من جديد.", "Counters reset; measurement has restarted.")
+                            resetSuccessText
                         } else {
-                            appText("تم التصفير؛ سيبدأ قياس الهاتف عند توفر عداد النظام.", "Reset complete; phone measurement will resume when the system counter is available.")
+                            resetPendingText
                         }
                         onResetComplete()
                         showResetConfirmation = false
