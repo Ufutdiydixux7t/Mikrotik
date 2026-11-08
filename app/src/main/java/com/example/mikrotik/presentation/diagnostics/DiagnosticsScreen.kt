@@ -72,13 +72,12 @@ fun DiagnosticsScreen(
     var currentDestination by remember { mutableStateOf<SettingsDestination>(SettingsDestination.MainSettings) }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
+        modifier = Modifier.fillMaxSize()
     ) {
         AppTopBar(
             title = when (currentDestination) {
                 SettingsDestination.MainSettings -> appText("الإعدادات", "Settings")
-                SettingsDestination.SystemInfo -> appText("معلومات النظام", "System information")
+                SettingsDestination.SystemInfo -> appText("تشخيصات الروت والنظام", "Root & System Diagnostics")
                 SettingsDestination.Measurement -> appText("القياس", "Usage measurement")
                 SettingsDestination.LoginPage -> appText("واجهة تسجيل الدخول", "Login portal")
                 SettingsDestination.AboutUs -> appText("نظرة عنا", "About")
@@ -155,13 +154,459 @@ fun DiagnosticsScreen(
 }
 
 @Composable
+fun MainSettingsList(
+    viewModel: DiagnosticsViewModel,
+    appLockViewModel: AppLockViewModel,
+    isDarkModeEnabled: Boolean,
+    onDarkModeToggle: (Boolean) -> Unit,
+    language: AppLanguage,
+    onNavigate: (SettingsDestination) -> Unit
+) {
+    val phoneInternetBlock by viewModel.phoneInternetBlock.collectAsState()
+    val portalAppearance by viewModel.portalAppearance.collectAsState()
+    val appLockConfig by appLockViewModel.config.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
+    var showInternetBlockConfirmation by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        // 1. قسم الأمان والوصول
+        SettingsSectionHeader(appText("الأمان والوصول", "Security & Access"))
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, WatermarkLineColor, RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // App Lock Row
+                SettingsItemRow(
+                    icon = AppIcons.Shield,
+                    iconContainerColor = if (appLockConfig.enabled) AppPalette.MintStrong else AppPalette.Mint,
+                    iconTintColor = AppPalette.Positive,
+                    title = appText("قفل التطبيق", "App lock"),
+                    subtitle = if (appLockConfig.enabled) {
+                        appText("مفعّل • ${appLockConfig.userNames.size} مستخدم", "Enabled • ${appLockConfig.userNames.size} user(s)")
+                    } else {
+                        appText("غير مفعّل • حماية الدخول برمز PIN", "Disabled • Protect app access with a PIN")
+                    },
+                    badgeText = if (appLockConfig.enabled) appText("مفعّل", "Active") else null,
+                    badgeColor = AppPalette.Positive,
+                    onClick = { onNavigate(SettingsDestination.AppLock) }
+                )
+
+                HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
+
+                // Block Phone Apps Internet Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (phoneInternetBlock.isEnabled) Color(0xFFFFEBEE) else AppPalette.Mint),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = AppIcons.Shield,
+                                contentDescription = appText("حظر إنترنت تطبيقات الهاتف", "Block phone apps' Internet"),
+                                tint = if (phoneInternetBlock.isEnabled) Color(0xFFC62828) else RichGreenButton,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = appText("حظر إنترنت تطبيقات الهاتف", "Block phone apps' Internet"),
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = DeepGreenHeader
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color(0xFFFFF3E0))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = appText("يتطلب روت", "Root required"),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFE65100)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = appText(
+                                    "يستثني MikroTik وDNS والشبكة المحلية دون إيقاف إنترنت المشتركين.",
+                                    "Exempts MikroTik, DNS & local LAN without interrupting hotspot clients."
+                                ),
+                                fontSize = 11.sp,
+                                lineHeight = 16.sp,
+                                color = AppPalette.Muted
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = phoneInternetBlock.isEnabled,
+                        onCheckedChange = { enabled ->
+                            if (enabled) showInternetBlockConfirmation = true
+                            else viewModel.setPhoneAppsInternetBlocked(false)
+                        },
+                        enabled = !phoneInternetBlock.isLoading,
+                        colors = settingsSwitchColors()
+                    )
+                }
+
+                if (phoneInternetBlock.failed) {
+                    Text(
+                        text = appText(
+                            "تعذر التحقق من قواعد الروت أو تطبيقها. لم يتم تأكيد الحظر.",
+                            "Could not verify or apply root firewall rules; blocking is not confirmed."
+                        ),
+                        color = Color(0xFFB3261E),
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        }
+
+        // 2. قسم إدارة الشبكة والبوابة
+        SettingsSectionHeader(appText("إدارة الشبكة والبوابة", "Hotspot & Network Management"))
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, WatermarkLineColor, RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Usage Measurement
+                SettingsItemRow(
+                    icon = AppIcons.BarChart,
+                    iconContainerColor = AppPalette.Mint,
+                    iconTintColor = RichGreenButton,
+                    title = appText("القياس ومراقبة الاستهلاك", "Usage measurement"),
+                    subtitle = appText("إجمالي المصدر والأجهزة المتصلة واستهلاك الهاتف", "Source, connected devices, and phone data breakdown"),
+                    onClick = { onNavigate(SettingsDestination.Measurement) }
+                )
+
+                HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
+
+                // Login Portal
+                val themeColorName = when (portalAppearance.theme) {
+                    PortalTheme.GREEN -> appText("أخضر", "Green")
+                    PortalTheme.BLUE -> appText("أزرق", "Blue")
+                    PortalTheme.RED -> appText("أحمر", "Red")
+                }
+                SettingsItemRow(
+                    icon = AppIcons.Login,
+                    iconContainerColor = AppPalette.Mint,
+                    iconTintColor = RichGreenButton,
+                    title = appText("واجهة تسجيل الدخول", "Login portal appearance"),
+                    subtitle = appText(
+                        "الاسم الحالي: ${portalAppearance.name} • اللون: $themeColorName",
+                        "Name: ${portalAppearance.name} • Theme: $themeColorName"
+                    ),
+                    onClick = { onNavigate(SettingsDestination.LoginPage) }
+                )
+            }
+        }
+
+        // 3. قسم التفضيلات الشخصية
+        SettingsSectionHeader(appText("التفضيلات الشخصية", "Personal Preferences"))
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, WatermarkLineColor, RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Language
+                SettingsItemRow(
+                    icon = AppIcons.Globe,
+                    iconContainerColor = AppPalette.Mint,
+                    iconTintColor = RichGreenButton,
+                    title = appText("اللغة", "Language"),
+                    subtitle = language.nativeName,
+                    badgeText = language.code.uppercase(),
+                    badgeColor = RichGreenButton,
+                    onClick = { onNavigate(SettingsDestination.Language) }
+                )
+
+                HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
+
+                // Dark Mode Switch Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(AppPalette.Mint),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = AppIcons.Moon,
+                                contentDescription = appText("الوضع الداكن", "Dark mode"),
+                                tint = RichGreenButton,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = appText("الوضع الداكن", "Dark mode"),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = DeepGreenHeader
+                            )
+                            Text(
+                                text = if (isDarkModeEnabled) appText("مفعّل", "Enabled") else appText("معطل", "Disabled"),
+                                fontSize = 11.sp,
+                                color = AppPalette.Muted
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = isDarkModeEnabled,
+                        onCheckedChange = onDarkModeToggle,
+                        colors = settingsSwitchColors()
+                    )
+                }
+            }
+        }
+
+        // 4. قسم التشخيص والدعم
+        SettingsSectionHeader(appText("التشخيص والدعم", "System & Diagnostics"))
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, WatermarkLineColor, RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // System Diagnostics
+                val rootSubtitle = when (val state = uiState) {
+                    is DiagnosticsUiState.Success -> when (state.report.rootStatus) {
+                        is RootStatus.Granted -> appText("الروت: ممنوح (uid=0) • iptables وقاعدة البيانات متصلة", "Root: Granted (uid=0) • iptables & DB connected")
+                        is RootStatus.Denied -> appText("الروت: مرفوض من Magisk", "Root: Denied in Magisk")
+                        is RootStatus.NotAvailable -> appText("الروت: غير متوفر على الجهاز", "Root: Not available")
+                    }
+                    is DiagnosticsUiState.Loading -> appText("جاري فحص بيئة النظام ورصده...", "Checking system environment...")
+                    is DiagnosticsUiState.Error -> appText("فحص الروت وقواعد البيانات", "Root and database diagnostics")
+                }
+                SettingsItemRow(
+                    icon = AppIcons.SystemMonitor,
+                    iconContainerColor = AppPalette.Mint,
+                    iconTintColor = RichGreenButton,
+                    title = appText("تشخيصات الروت والنظام", "Root & System Diagnostics"),
+                    subtitle = rootSubtitle,
+                    onClick = { onNavigate(SettingsDestination.SystemInfo) }
+                )
+
+                HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
+
+                // Privacy
+                SettingsItemRow(
+                    icon = AppIcons.Info,
+                    iconContainerColor = AppPalette.Mint,
+                    iconTintColor = RichGreenButton,
+                    title = appText("خصوصية الاستخدام", "Usage privacy"),
+                    subtitle = appText("بيانات الشبكة والتخزين والتحكم المحلي", "Network data, storage, and local controls"),
+                    onClick = { onNavigate(SettingsDestination.Privacy) }
+                )
+
+                HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
+
+                // About Us
+                SettingsItemRow(
+                    icon = AppIcons.Info,
+                    iconContainerColor = AppPalette.Mint,
+                    iconTintColor = RichGreenButton,
+                    title = appText("عن التطبيق", "About"),
+                    subtitle = appText("نظام Mini MikroTik وإصدار المطور", "Mini MikroTik system & developer info"),
+                    onClick = { onNavigate(SettingsDestination.AboutUs) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+
+    if (showInternetBlockConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showInternetBlockConfirmation = false },
+            title = {
+                Text(appText("تأكيد حظر إنترنت تطبيقات الهاتف", "Confirm blocking phone apps' Internet"))
+            },
+            text = {
+                Text(
+                    appText(
+                        "سيُمنع الإنترنت عن التطبيقات الأخرى وخدمات النظام. يبقى MikroTik والأجهزة المتصلة بالهوتسبوت مستثناة. قد تبقى قواعد الروت فعالة حتى توقف المفتاح أو تعيد تشغيل الهاتف؛ أوقف الحظر قبل حذف التطبيق.",
+                        "Other apps and system services will lose Internet access. MikroTik and hotspot clients remain exempt. Root rules may stay active until you switch this off or reboot; turn it off before uninstalling the app."
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showInternetBlockConfirmation = false
+                        viewModel.setPhoneAppsInternetBlocked(true)
+                    }
+                ) {
+                    Text(appText("تفعيل الحظر", "Enable blocking"), color = Color(0xFFB3261E))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showInternetBlockConfirmation = false }) {
+                    Text(appText("إلغاء", "Cancel"), color = DeepGreenHeader)
+                }
+            },
+            containerColor = SeamlessCardBg
+        )
+    }
+}
+
+@Composable
+private fun SettingsSectionHeader(title: String) {
+    Text(
+        text = title,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+        color = RichGreenButton,
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 2.dp)
+    )
+}
+
+@Composable
+fun SettingsItemRow(
+    icon: ImageVector,
+    iconContainerColor: Color = AppPalette.Mint,
+    iconTintColor: Color = RichGreenButton,
+    title: String,
+    subtitle: String? = null,
+    badgeText: String? = null,
+    badgeColor: Color = RichGreenButton,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(iconContainerColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = iconTintColor,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = title,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = DeepGreenHeader
+                    )
+                    if (badgeText != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(badgeColor.copy(alpha = 0.12f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = badgeText,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = badgeColor
+                            )
+                        }
+                    }
+                }
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                        color = AppPalette.Muted
+                    )
+                }
+            }
+        }
+
+        Icon(
+            imageVector = if (LocalAppLanguage.current == AppLanguage.ARABIC) AppIcons.ChevronLeft else AppIcons.ChevronRight,
+            contentDescription = null,
+            tint = AppPalette.Muted,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+@Composable
 private fun LanguageSettingsScreen(
     language: AppLanguage,
     onLanguageChange: (AppLanguage) -> Unit,
     onBack: () -> Unit
 ) {
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         BackToSettingsButton(onClick = onBack)
@@ -328,217 +773,6 @@ private fun PortalAppearanceSettingsScreen(
 }
 
 @Composable
-fun MainSettingsList(
-    viewModel: DiagnosticsViewModel,
-    appLockViewModel: AppLockViewModel,
-    isDarkModeEnabled: Boolean,
-    onDarkModeToggle: (Boolean) -> Unit,
-    language: AppLanguage,
-    onNavigate: (SettingsDestination) -> Unit
-) {
-    val phoneInternetBlock by viewModel.phoneInternetBlock.collectAsState()
-    var showInternetBlockConfirmation by remember { mutableStateOf(false) }
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, WatermarkLineColor, RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // Language
-            SettingsItemRow(
-                icon = AppIcons.Globe,
-                title = appText("اللغة", "Language"),
-                subtitle = language.nativeName,
-                onClick = { onNavigate(SettingsDestination.Language) }
-            )
-            HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
-
-            SettingsItemRow(
-                icon = AppIcons.BarChart,
-                title = appText("القياس", "Usage measurement"),
-                subtitle = appText("إجمالي المصدر واستهلاك الأجهزة والهاتف", "Source, connected devices, and phone usage"),
-                onClick = { onNavigate(SettingsDestination.Measurement) }
-            )
-            HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
-
-            val appLockConfig by appLockViewModel.config.collectAsState()
-            SettingsItemRow(
-                icon = AppIcons.Shield,
-                title = appText("قفل التطبيق", "App lock"),
-                subtitle = if (appLockConfig.enabled) {
-                    appText("مفعّل • ${appLockConfig.userNames.size} مستخدم", "Enabled • ${appLockConfig.userNames.size} user(s)")
-                } else {
-                    appText("حماية الدخول برمز PIN", "Protect app access with a PIN")
-                },
-                onClick = { onNavigate(SettingsDestination.AppLock) }
-            )
-            HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        imageVector = AppIcons.Shield,
-                        contentDescription = appText("حظر إنترنت تطبيقات الهاتف", "Block phone apps' Internet"),
-                        tint = RichGreenButton,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(
-                            text = appText("حظر إنترنت تطبيقات الهاتف", "Block phone apps' Internet"),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = DeepGreenHeader
-                        )
-                        Text(
-                            text = appText(
-                                "يتطلب روت؛ يستثني MikroTik وDNS والشبكة المحلية، ولا يوقف إنترنت الأجهزة المتصلة.",
-                                "Requires root; keeps MikroTik, DNS and local LAN available, and does not block hotspot clients."
-                            ),
-                            fontSize = 11.sp,
-                            lineHeight = 16.sp,
-                            color = AppPalette.Muted
-                        )
-                    }
-                }
-                Switch(
-                    checked = phoneInternetBlock.isEnabled,
-                    onCheckedChange = { enabled ->
-                        if (enabled) showInternetBlockConfirmation = true
-                        else viewModel.setPhoneAppsInternetBlocked(false)
-                    },
-                    enabled = !phoneInternetBlock.isLoading,
-                    colors = settingsSwitchColors()
-                )
-            }
-            if (phoneInternetBlock.failed) {
-                Text(
-                    text = appText(
-                        "تعذر التحقق من قواعد الروت أو تطبيقها. لم يتم تأكيد الحظر.",
-                        "Could not verify or apply the root firewall rules; blocking is not confirmed."
-                    ),
-                    color = Color(0xFFB3261E),
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                )
-            }
-            HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
-
-            // Dark Mode Switch Row
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        imageVector = AppIcons.Moon,
-                        contentDescription = appText("الوضع الداكن", "Dark mode"),
-                        tint = RichGreenButton,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Text(
-                        text = appText("الوضع الداكن", "Dark mode"),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = DeepGreenHeader
-                    )
-                }
-                Switch(
-                    checked = isDarkModeEnabled,
-                    onCheckedChange = onDarkModeToggle,
-                    colors = settingsSwitchColors()
-                )
-            }
-            HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
-
-            // Login Page
-            SettingsItemRow(
-                icon = AppIcons.Login,
-                title = appText("واجهة تسجيل الدخول", "Login portal"),
-                subtitle = appText("تعديل الاسم واللون للأجهزة المتصلة", "Customize name and color for connected clients"),
-                onClick = { onNavigate(SettingsDestination.LoginPage) }
-            )
-            HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
-
-            // About Us
-            SettingsItemRow(
-                icon = AppIcons.Info,
-                title = appText("نظرة عنا", "About"),
-                onClick = { onNavigate(SettingsDestination.AboutUs) }
-            )
-            HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
-
-            // Privacy
-            SettingsItemRow(
-                icon = AppIcons.Shield,
-                title = appText("خصوصية الاستخدام", "Usage privacy"),
-                subtitle = appText("بيانات الشبكة والتخزين والتحكم", "Network data, storage, and controls"),
-                onClick = { onNavigate(SettingsDestination.Privacy) }
-            )
-            HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
-
-            // System Info
-            SettingsItemRow(
-                icon = AppIcons.SystemMonitor,
-                title = appText("معلومات النظام", "System information"),
-                onClick = { onNavigate(SettingsDestination.SystemInfo) }
-            )
-
-            if (showInternetBlockConfirmation) {
-                AlertDialog(
-                    onDismissRequest = { showInternetBlockConfirmation = false },
-                    title = {
-                        Text(appText("تأكيد حظر إنترنت تطبيقات الهاتف", "Confirm blocking phone apps' Internet"))
-                    },
-                    text = {
-                        Text(
-                            appText(
-                                "سيُمنع الإنترنت عن التطبيقات الأخرى وخدمات النظام. يبقى MikroTik والأجهزة المتصلة بالهوتسبوت مستثناة. قد تبقى قواعد الروت فعالة حتى توقف المفتاح أو تعيد تشغيل الهاتف؛ أوقف الحظر قبل حذف التطبيق.",
-                                "Other apps and system services will lose Internet access. MikroTik and hotspot clients remain exempt. Root rules may stay active until you switch this off or reboot; turn it off before uninstalling the app."
-                            )
-                        )
-                    },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-                                showInternetBlockConfirmation = false
-                                viewModel.setPhoneAppsInternetBlocked(true)
-                            }
-                        ) {
-                            Text(appText("تفعيل الحظر", "Enable blocking"), color = Color(0xFFB3261E))
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showInternetBlockConfirmation = false }) {
-                            Text(appText("إلغاء", "Cancel"), color = DeepGreenHeader)
-                        }
-                    },
-                    containerColor = SeamlessCardBg
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun BackToSettingsButton(onClick: () -> Unit) {
     OutlinedButton(
         onClick = onClick,
@@ -556,58 +790,6 @@ private fun BackToSettingsButton(onClick: () -> Unit) {
                 modifier = Modifier.size(18.dp)
             )
         }
-    }
-}
-
-@Composable
-fun SettingsItemRow(
-    icon: ImageVector,
-    title: String,
-    subtitle: String? = null,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = RichGreenButton,
-                modifier = Modifier.size(24.dp)
-            )
-            Column {
-                Text(
-                    text = title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = DeepGreenHeader
-                )
-                if (subtitle != null) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = subtitle,
-                        fontSize = 12.sp,
-                        color = AppPalette.Muted
-                    )
-                }
-            }
-        }
-
-        Icon(
-            imageVector = if (LocalAppLanguage.current == AppLanguage.ARABIC) AppIcons.ChevronLeft else AppIcons.ChevronRight,
-            contentDescription = null,
-            tint = AppPalette.Muted,
-            modifier = Modifier.size(20.dp)
-        )
     }
 }
 
@@ -910,51 +1092,6 @@ private fun PrivacyInfoCard(icon: ImageVector, title: String, message: String) {
                     fontSize = 12.sp,
                     lineHeight = 19.sp,
                     color = AppPalette.Muted
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun BlankDetailScreen(
-    title: String,
-    message: String,
-    onBack: () -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        BackToSettingsButton(onClick = onBack)
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, WatermarkLineColor, RoundedCornerShape(16.dp)),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = title,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = DeepGreenHeader
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = message,
-                    fontSize = 14.sp,
-                    color = AppPalette.Muted,
-                    textAlign = TextAlign.Center
                 )
             }
         }
