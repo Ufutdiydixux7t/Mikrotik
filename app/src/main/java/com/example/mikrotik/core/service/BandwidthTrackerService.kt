@@ -13,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import com.example.mikrotik.core.hotspot.HotspotController
 import com.example.mikrotik.core.network.IptablesManager
 import com.example.mikrotik.core.network.UsageMeasurementStore
+import com.example.mikrotik.core.session.SessionTransitionLock
 import com.example.mikrotik.data.db.dao.ActiveSessionDao
 import com.example.mikrotik.data.db.dao.BlockedMacDao
 import com.example.mikrotik.data.db.dao.VoucherDao
@@ -35,6 +36,7 @@ class BandwidthTrackerService : Service() {
     @Inject lateinit var blockedMacDao: BlockedMacDao
     @Inject lateinit var iptablesManager: IptablesManager
     @Inject lateinit var hotspotController: HotspotController
+    @Inject lateinit var sessionTransitionLock: SessionTransitionLock
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var trackingJob: Job? = null
@@ -98,6 +100,19 @@ class BandwidthTrackerService : Service() {
             .distinctBy { it.macAddress.lowercase() }
         val apInterface = if (sessions.isNotEmpty()) getCachedApInterface() else null
         for (session in sessions) {
+            sessionTransitionLock.lock()
+            try {
+            val currentSession = activeSessionDao.getSessionByMac(session.macAddress)
+            if (currentSession == null ||
+                !currentSession.isActive ||
+                !currentSession.voucherCode.equals(session.voucherCode, ignoreCase = true) ||
+                currentSession.ipAddress != session.ipAddress ||
+                currentSession.connectedAt != session.connectedAt
+            ) {
+                Log.d("BandwidthTracker", "Skipping stale session snapshot for ${session.macAddress}")
+                continue
+            }
+
             val mac = session.macAddress
             if (blockedMacDao.isMacBlocked(mac)) {
                 val matchingSessions = activeSessionDao.getSessionsByMac(mac)
@@ -185,6 +200,9 @@ class BandwidthTrackerService : Service() {
                     session,
                     if (isQuotaExceeded) "quota" else "duration"
                 )
+            }
+            } finally {
+                sessionTransitionLock.unlock()
             }
         }
     }

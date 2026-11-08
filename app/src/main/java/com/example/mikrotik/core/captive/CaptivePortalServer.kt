@@ -11,6 +11,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import com.example.mikrotik.core.hotspot.ClientDiscoveryManager
 import com.example.mikrotik.core.network.IptablesManager
+import com.example.mikrotik.core.session.SessionTransitionLock
 import com.example.mikrotik.data.db.dao.ActiveSessionDao
 import com.example.mikrotik.data.db.dao.BlockedMacDao
 import com.example.mikrotik.data.db.dao.VoucherDao
@@ -27,6 +28,7 @@ class CaptivePortalServer @Inject constructor(
     private val blockedMacDao: BlockedMacDao,
     private val clientDiscoveryManager: ClientDiscoveryManager,
     private val iptablesManager: IptablesManager,
+    private val sessionTransitionLock: SessionTransitionLock,
     private val portalAppearanceSettings: PortalAppearanceSettings
 ) {
 
@@ -134,6 +136,8 @@ class CaptivePortalServer @Inject constructor(
                                 "CaptivePortalServer",
                                 "Resolved voucher client: ip=${client.ipAddress}, interface=${client.interfaceName}"
                             )
+                            sessionTransitionLock.lock()
+                            try {
                             if (blockedMacDao.isMacBlocked(clientMac)) {
                                 call.respondText(
                                     getHtmlResultPage("الجهاز محظور", "هذا الجهاز محظور من لوحة التحكم. أزل الحظر أولاً ثم أعد المحاولة.", false),
@@ -235,6 +239,9 @@ class CaptivePortalServer @Inject constructor(
                                     getHtmlResultPage("تعذر تسجيل الدخول", reason, false),
                                     contentType = ContentType.Text.Html
                                 )
+                            }
+                            } finally {
+                                sessionTransitionLock.unlock()
                             }
                         }
                     }

@@ -61,28 +61,9 @@ class DashboardViewModel @Inject constructor(
             while (isActive) {
                 val latest = activeSessions.value.distinctBy { it.macAddress.lowercase() }
                 val refreshedUsage = mutableMapOf<String, DeviceUsageInfo>()
-                val now = System.currentTimeMillis()
                 for (session in latest) {
                     val usageInfo = loadUsageInfo(session)
                     refreshedUsage[session.macAddress] = usageInfo
-
-                    // Check if voucher has expired or exceeded quota or was deleted
-                    val voucher = voucherDao.getVoucherByCode(session.voucherCode)
-                    val isExpired = when {
-                        voucher == null -> true
-                        voucher.isBlocked -> true
-                        voucher.dataLimitBytes > 0L && usageInfo.bytesUsed >= voucher.dataLimitBytes -> true
-                        voucher.firstUsedAt != null && now >= voucher.firstUsedAt + voucher.durationMinutes * 60_000L -> true
-                        else -> false
-                    }
-                    if (isExpired) {
-                        // Immediately remove expired session from active sessions so it disappears from UI
-                        activeSessionDao.deactivateSession(session.macAddress)
-                        activeSessionDao.deleteSession(session.macAddress)
-                        iptablesManager.blockClientIpAddress(session.ipAddress)
-                        iptablesManager.revokeMacAddress(session.macAddress)
-                        iptablesManager.blockMacAddress(session.macAddress)
-                    }
                 }
                 _deviceUsage.value = refreshedUsage
 
