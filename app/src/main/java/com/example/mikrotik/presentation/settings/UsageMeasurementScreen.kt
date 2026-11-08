@@ -64,6 +64,8 @@ fun UsageMeasurementScreen(
     var snapshot by remember(context) { mutableStateOf(UsageMeasurementStore.read(context)) }
     var showResetConfirmation by remember { mutableStateOf(false) }
     var resetMessage by remember { mutableStateOf<String?>(null) }
+    val msgResetRestarted = appText("تم تصفير الأرقام وبدأ القياس من جديد.", "Counters reset; measurement has restarted.")
+    val msgResetResuming = appText("تم التصفير؛ سيبدأ قياس الهاتف عند توفر عداد النظام.", "Reset complete; phone measurement will resume when the system counter is available.")
 
     LaunchedEffect(context) {
         while (isActive) {
@@ -110,7 +112,7 @@ fun UsageMeasurementScreen(
         MeasurementCard(
             icon = AppIcons.BarChart,
             title = appText("استهلاك الإنترنت اليومي", "Daily internet usage"),
-            value = if (snapshot.deviceCounterAvailable) formatBytes(snapshot.deviceTodayBytes)
+            value = if (snapshot.sourceCounterAvailable) formatBytes(snapshot.sourceTodayBytes)
             else appText("غير متاح", "Unavailable"),
             detail = appText(
                 "عداد حركة واجهات الهاتف عبر Wi-Fi وبيانات الهاتف.",
@@ -121,10 +123,10 @@ fun UsageMeasurementScreen(
         MeasurementCard(
             icon = AppIcons.CreditCard,
             title = appText("مجموع استهلاك البطاقات", "Combined voucher usage"),
-            value = formatBytes(snapshot.voucherTotalBytes),
+            value = formatBytes(snapshot.clientsTotalBytes),
             detail = appText(
-                "منذ آخر تصفير • استهلاك البطاقات اليوم: ${formatBytes(snapshot.vouchersTodayBytes)}",
-                "Since last reset • voucher usage today: ${formatBytes(snapshot.vouchersTodayBytes)}"
+                "منذ آخر تصفير • استهلاك البطاقات اليوم: ${formatBytes(snapshot.clientsTodayBytes)}",
+                "Since last reset • voucher usage today: ${formatBytes(snapshot.clientsTodayBytes)}"
             )
         )
 
@@ -164,9 +166,6 @@ fun UsageMeasurementScreen(
         }
     }
 
-    val resetSuccessText = appText("تم تصفير الأرقام وبدأ القياس من جديد.", "Counters reset; measurement has restarted.")
-    val resetPendingText = appText("تم التصفير؛ سيبدأ قياس الهاتف عند توفر عداد النظام.", "Reset complete; phone measurement will resume when the system counter is available.")
-
     if (showResetConfirmation) {
         AlertDialog(
             onDismissRequest = { showResetConfirmation = false },
@@ -185,12 +184,12 @@ fun UsageMeasurementScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val deviceCounterAvailable = UsageMeasurementStore.reset(context)
+                        val sourceCounterAvailable = UsageMeasurementStore.reset(context)
                         snapshot = UsageMeasurementStore.read(context)
-                        resetMessage = if (deviceCounterAvailable) {
-                            resetSuccessText
+                        resetMessage = if (sourceCounterAvailable) {
+                            msgResetRestarted
                         } else {
-                            resetPendingText
+                            msgResetResuming
                         }
                         onResetComplete()
                         showResetConfirmation = false

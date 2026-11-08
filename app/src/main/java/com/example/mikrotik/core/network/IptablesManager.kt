@@ -15,6 +15,112 @@ class IptablesManager @Inject constructor(
     private val interfacePattern = Regex("^[A-Za-z0-9_.-]{1,15}$")
     private val stationHeaderPattern = Regex("(?i)^\\s*Station\\s+([0-9a-f]{2}(?::[0-9a-f]{2}){5})")
 
+    /** Blocks this app's device-local OUTPUT traffic except the app itself, DNS, and private LAN. */
+    suspend fun setPhoneAppsInternetBlocked(appUid: Int, blocked: Boolean): Boolean {
+        if (appUid < 0) return false
+        if (!blocked) {
+            val v4 = removePhoneAppBlockChain("iptables", "MM_APP_OUT")
+            val v6 = removePhoneAppBlockChain("ip6tables", "MM_APP6_OUT")
+            return v4 && v6
+        }
+        if (isPhoneAppsInternetBlocked(appUid) == true) return true
+
+        val v4 = installPhoneAppBlockChain("iptables", "MM_APP_OUT", appUid, isIpv6 = false)
+        val v6 = installPhoneAppBlockChain("ip6tables", "MM_APP6_OUT", appUid, isIpv6 = true)
+        if (v4 && v6) return true
+
+        // Never leave a half-installed IPv4/IPv6 restriction if either family failed.
+        removePhoneAppBlockChain("iptables", "MM_APP_OUT")
+        removePhoneAppBlockChain("ip6tables", "MM_APP6_OUT")
+        return false
+    }
+
+    /** null means firewall status could not be inspected reliably. */
+    suspend fun isPhoneAppsInternetBlocked(appUid: Int): Boolean? {
+        val v4Output = rootShellManager.executeCommand("iptables -S OUTPUT")
+        val v6Output = rootShellManager.executeCommand("ip6tables -S OUTPUT")
+        if (!v4Output.isSuccess || !v6Output.isSuccess) return null
+        val v4 = rootShellManager.executeCommand("iptables -C OUTPUT -j MM_APP_OUT").isSuccess
+        val v6 = rootShellManager.executeCommand("ip6tables -C OUTPUT -j MM_APP6_OUT").isSuccess
+        if (v4 != v6) return null
+        if (!v4) return false
+
+        val v4Rules = rootShellManager.executeCommand("iptables -S MM_APP_OUT")
+        val v6Rules = rootShellManager.executeCommand("ip6tables -S MM_APP6_OUT")
+        if (!v4Rules.isSuccess || !v6Rules.isSuccess) return null
+        val v4Ready = v4Rules.stdout.any { it.contains("--uid-owner $appUid") } &&
+            v4Rules.stdout.any { it.endsWith("-j DROP") }
+        val v6Ready = v6Rules.stdout.any { it.contains("--uid-owner $appUid") } &&
+            v6Rules.stdout.any { it.endsWith("-j DROP") }
+        return if (v4Ready && v6Ready) true else null
+    }
+
+    private suspend fun installPhoneAppBlockChain(
+        binary: String,
+        chain: String,
+        appUid: Int,
+        isIpv6: Boolean
+    ): Boolean {
+        val created = rootShellManager.executeCommand("$binary -N $chain")
+        if (!created.isSuccess && !rootShellManager.executeCommand("$binary -S $chain").isSuccess) return false
+        if (!rootShellManager.executeCommand("$binary -F $chain").isSuccess) return false
+
+        val allowedRules = mutableListOf(
+            "$binary -A $chain -m owner --uid-owner $appUid -j RETURN",
+            "$binary -A $chain -o lo -j RETURN"
+        )
+        val localNetworks = if (isIpv6) {
+            listOf("::1/128", "fc00::/7", "fe80::/10", "ff00::/8")
+        } else {
+            listOf(
+                "127.0.0.0/8",
+                "10.0.0.0/8",
+                "172.16.0.0/12",
+                "192.168.0.0/16",
+                "169.254.0.0/16",
+                "224.0.0.0/4",
+                "255.255.255.255/32"
+            )
+        }
+        localNetworks.forEach { network ->
+            allowedRules += "$binary -A $chain -d $network -j RETURN"
+        }
+        if (!isIpv6) allowedRules += "$binary -A $chain -p udp --dport 67:68 -j RETURN"
+        allowedRules += "$binary -A $chain -p udp --dport 53 -j RETURN"
+        allowedRules += "$binary -A $chain -p tcp --dport 53 -j RETURN"
+        allowedRules += "$binary -A $chain -j DROP"
+
+        for (rule in allowedRules) {
+            if (!rootShellManager.executeCommand(rule).isSuccess) {
+                rootShellManager.executeCommand("$binary -F $chain")
+                return false
+            }
+        }
+
+        val jump = "$binary -C OUTPUT -j $chain"
+        if (!rootShellManager.executeCommand(jump).isSuccess &&
+            !rootShellManager.executeCommand("$binary -I OUTPUT 1 -j $chain").isSuccess
+        ) {
+            rootShellManager.executeCommand("$binary -F $chain")
+            return false
+        }
+        return true
+    }
+
+    private suspend fun removePhoneAppBlockChain(binary: String, chain: String): Boolean {
+        if (!rootShellManager.executeCommand("$binary -S OUTPUT").isSuccess) return false
+        val exists = rootShellManager.executeCommand("$binary -S $chain").isSuccess
+        if (!exists) return !rootShellManager.executeCommand("$binary -C OUTPUT -j $chain").isSuccess
+        var removedJumps = 0
+        while (removedJumps < 16 && rootShellManager.executeCommand("$binary -C OUTPUT -j $chain").isSuccess) {
+            if (!rootShellManager.executeCommand("$binary -D OUTPUT -j $chain").isSuccess) return false
+            removedJumps++
+        }
+        if (rootShellManager.executeCommand("$binary -C OUTPUT -j $chain").isSuccess) return false
+        if (!rootShellManager.executeCommand("$binary -F $chain").isSuccess) return false
+        return rootShellManager.executeCommand("$binary -X $chain").isSuccess
+    }
+
     /** Reads per-station Wi-Fi byte counters, covering all IP versions when the driver exposes them. */
     suspend fun getWifiStationUsageBytes(macAddress: String, interfaceName: String): Long? {
         val mac = macAddress.lowercase()
