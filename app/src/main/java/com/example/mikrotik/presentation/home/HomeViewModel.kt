@@ -7,6 +7,7 @@ import com.example.mikrotik.core.hotspot.ClientDiscoveryManager
 import com.example.mikrotik.core.hotspot.HotspotController
 import com.example.mikrotik.core.network.DeviceNetworkUsageReader
 import com.example.mikrotik.core.network.NetworkController
+import com.example.mikrotik.core.network.UsageMeasurementStore
 import com.example.mikrotik.domain.model.ConnectedDevice
 import com.example.mikrotik.domain.model.HotspotState
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -273,10 +274,10 @@ class HomeViewModel @Inject constructor(
         if (right > 0L && left > Long.MAX_VALUE - right) Long.MAX_VALUE else left + right
 
     private companion object {
-        const val USAGE_HISTORY_PREFS = "device_usage_history"
-        const val KEY_LAST_TOTAL = "last_total_bytes"
-        const val KEY_LAST_TIME = "last_sample_time"
-        const val DAY_KEY_PREFIX = "day:"
+        const val USAGE_HISTORY_PREFS = UsageMeasurementStore.DEVICE_USAGE_PREFERENCES
+        const val KEY_LAST_TOTAL = UsageMeasurementStore.DEVICE_LAST_TOTAL_KEY
+        const val KEY_LAST_TIME = UsageMeasurementStore.DEVICE_LAST_SAMPLE_TIME_KEY
+        const val DAY_KEY_PREFIX = UsageMeasurementStore.DAY_KEY_PREFIX
         const val HISTORY_RETENTION_DAYS = 400L
         const val MAX_DAYS_PER_SAMPLE = 5000
         const val MILLIS_PER_DAY = 86_400_000L

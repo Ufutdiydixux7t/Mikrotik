@@ -152,7 +152,8 @@ fun MainScreen(
                             isDarkModeEnabled = isDarkModeEnabled,
                             onDarkModeToggle = onDarkModeToggle,
                             language = language,
-                            onLanguageChange = onLanguageChange
+                            onLanguageChange = onLanguageChange,
+                            onUsageReset = { homeViewModel.refreshAll() }
                         )
                     }
                 }

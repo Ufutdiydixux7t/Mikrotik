@@ -79,17 +79,21 @@ class VoucherViewModel @Inject constructor(
         _creationSuccess.value = null
         viewModelScope.launch {
             try {
-                val code = "MDI-" + (1000..9999).random()
                 val durationMinutes = durationDays * 24 * 60L
-
-                val voucher = VoucherEntity(
-                    code = code,
-                    durationMinutes = durationMinutes,
-                    dataLimitBytes = dataBytes,
-                    createdAt = System.currentTimeMillis()
-                )
-                voucherDao.insertVoucher(voucher)
-                _creationSuccess.value = code
+                repeat(MAX_CODE_GENERATION_ATTEMPTS) {
+                    val code = (1000..9999).random().toString()
+                    val voucher = VoucherEntity(
+                        code = code,
+                        durationMinutes = durationMinutes,
+                        dataLimitBytes = dataBytes,
+                        createdAt = System.currentTimeMillis()
+                    )
+                    if (voucherDao.insertVoucherIfAbsent(voucher) != -1L) {
+                        _creationSuccess.value = code
+                        return@launch
+                    }
+                }
+                _creationError.value = "تعذر إنشاء رمز فريد من أربعة أرقام؛ أعد المحاولة."
             } catch (exception: Exception) {
                 _creationError.value = "تعذر إنشاء البطاقة: ${exception.message ?: "خطأ غير معروف"}"
             }
@@ -141,5 +145,9 @@ class VoucherViewModel @Inject constructor(
                 onComplete(false)
             }
         }
+    }
+
+    private companion object {
+        const val MAX_CODE_GENERATION_ATTEMPTS = 128
     }
 }

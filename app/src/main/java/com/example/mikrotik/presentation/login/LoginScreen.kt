@@ -221,7 +221,11 @@ fun LoginScreen(
                             if (voucherCode.isBlank()) {
                                 loginResult = emptyVoucherMessage
                                 isSuccess = false
-                            } else if (voucherCode == "12345" || voucherCode.startsWith("MDI")) {
+                            } else if (
+                                voucherCode.trim().matches(Regex("\\d{4}")) ||
+                                voucherCode == "12345" ||
+                                voucherCode.startsWith("MDI")
+                            ) {
                                 loginResult = successMessage
                                 isSuccess = true
                             } else {

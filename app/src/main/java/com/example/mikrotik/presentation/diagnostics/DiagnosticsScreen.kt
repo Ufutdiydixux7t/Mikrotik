@@ -38,6 +38,7 @@ private val WatermarkLineColor get() = AppPalette.Border
 sealed class SettingsDestination {
     object MainSettings : SettingsDestination()
     object SystemInfo : SettingsDestination()
+    object Measurement : SettingsDestination()
     object LoginPage : SettingsDestination()
     object AboutUs : SettingsDestination()
     object Privacy : SettingsDestination()
@@ -50,7 +51,8 @@ fun DiagnosticsScreen(
     isDarkModeEnabled: Boolean,
     onDarkModeToggle: (Boolean) -> Unit,
     language: AppLanguage,
-    onLanguageChange: (AppLanguage) -> Unit
+    onLanguageChange: (AppLanguage) -> Unit,
+    onUsageReset: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var currentDestination by remember { mutableStateOf<SettingsDestination>(SettingsDestination.MainSettings) }
@@ -63,6 +65,7 @@ fun DiagnosticsScreen(
             title = when (currentDestination) {
                 SettingsDestination.MainSettings -> appText("الإعدادات", "Settings")
                 SettingsDestination.SystemInfo -> appText("معلومات النظام", "System information")
+                SettingsDestination.Measurement -> appText("القياس", "Usage measurement")
                 SettingsDestination.LoginPage -> appText("واجهة تسجيل الدخول", "Login portal")
                 SettingsDestination.AboutUs -> appText("نظرة عنا", "About")
                 SettingsDestination.Privacy -> appText("البيانات والخصوصية", "Data & privacy")
@@ -92,6 +95,12 @@ fun DiagnosticsScreen(
                         uiState = uiState,
                         onRefresh = { viewModel.runDiagnostics() },
                         onBack = { currentDestination = SettingsDestination.MainSettings }
+                    )
+                }
+                SettingsDestination.Measurement -> {
+                    com.example.mikrotik.presentation.settings.UsageMeasurementScreen(
+                        onBack = { currentDestination = SettingsDestination.MainSettings },
+                        onResetComplete = onUsageReset
                     )
                 }
                 SettingsDestination.LoginPage -> {
@@ -322,6 +331,14 @@ fun MainSettingsList(
                 title = appText("اللغة", "Language"),
                 subtitle = language.nativeName,
                 onClick = { onNavigate(SettingsDestination.Language) }
+            )
+            HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
+
+            SettingsItemRow(
+                icon = AppIcons.BarChart,
+                title = appText("القياس", "Usage measurement"),
+                subtitle = appText("استهلاك الهاتف ومجموع البطاقات", "Phone and combined voucher usage"),
+                onClick = { onNavigate(SettingsDestination.Measurement) }
             )
             HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
 

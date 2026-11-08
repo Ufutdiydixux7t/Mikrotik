@@ -42,6 +42,9 @@ interface VoucherDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertVoucher(voucher: VoucherEntity)
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertVoucherIfAbsent(voucher: VoucherEntity): Long
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertVouchers(vouchers: List<VoucherEntity>)
 

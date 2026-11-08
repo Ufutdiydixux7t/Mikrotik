@@ -12,6 +12,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.mikrotik.core.hotspot.HotspotController
 import com.example.mikrotik.core.network.IptablesManager
+import com.example.mikrotik.core.network.UsageMeasurementStore
 import com.example.mikrotik.data.db.dao.ActiveSessionDao
 import com.example.mikrotik.data.db.dao.BlockedMacDao
 import com.example.mikrotik.data.db.dao.VoucherDao
@@ -165,6 +166,7 @@ class BandwidthTrackerService : Service() {
                     )
                     voucherDao.updateVoucher(updatedVoucher)
                     voucher = updatedVoucher
+                    UsageMeasurementStore.recordVoucherUsage(this@BandwidthTrackerService, addedBytes)
                 }
             } else {
                 Log.w("BandwidthTracker", "Could not read traffic counters for $mac; quota usage was not changed")
