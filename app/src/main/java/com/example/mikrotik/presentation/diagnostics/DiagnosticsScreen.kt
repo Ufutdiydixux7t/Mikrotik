@@ -35,6 +35,15 @@ private val PageBackground get() = AppPalette.Background
 private val SeamlessCardBg get() = AppPalette.Card
 private val WatermarkLineColor get() = AppPalette.Border
 
+private fun settingsSwitchColors() = SwitchDefaults.colors(
+    checkedThumbColor = Color.White,
+    checkedTrackColor = AppPalette.Positive,
+    checkedBorderColor = AppPalette.Positive,
+    uncheckedThumbColor = if (AppPalette.isDarkMode) Color(0xFFDCE7EB) else Color.White,
+    uncheckedTrackColor = if (AppPalette.isDarkMode) Color(0xFF344A53) else Color(0xFFE1E9EC),
+    uncheckedBorderColor = if (AppPalette.isDarkMode) Color(0xFF78909C) else Color(0xFF9AAAB1)
+)
+
 sealed class SettingsDestination {
     object MainSettings : SettingsDestination()
     object SystemInfo : SettingsDestination()
@@ -68,7 +77,7 @@ fun DiagnosticsScreen(
                 SettingsDestination.Measurement -> appText("القياس", "Usage measurement")
                 SettingsDestination.LoginPage -> appText("واجهة تسجيل الدخول", "Login portal")
                 SettingsDestination.AboutUs -> appText("نظرة عنا", "About")
-                SettingsDestination.Privacy -> appText("البيانات والخصوصية", "Data & privacy")
+                SettingsDestination.Privacy -> appText("خصوصية الاستخدام", "Usage privacy")
                 SettingsDestination.Language -> appText("اللغة", "Language")
             },
             subtitle = "AL RABDI NET",
@@ -116,12 +125,7 @@ fun DiagnosticsScreen(
                     )
                 }
                 SettingsDestination.Privacy -> {
-                    BlankDetailScreen(
-                        title = appText("البيانات والخصوصية", "Data & privacy"),
-                        message = appText(
-                            "جميع بيانات الحزم والبطاقات مخزنة محلياً في قاعدة البيانات المشفرة.",
-                            "All voucher and session data is stored locally in the app database."
-                        ),
+                    PrivacySettingsScreen(
                         onBack = { currentDestination = SettingsDestination.MainSettings }
                     )
                 }
@@ -389,7 +393,7 @@ fun MainSettingsList(
                         else viewModel.setPhoneAppsInternetBlocked(false)
                     },
                     enabled = !phoneInternetBlock.isLoading,
-                    colors = SwitchDefaults.colors(checkedThumbColor = RichGreenButton)
+                    colors = settingsSwitchColors()
                 )
             }
             if (phoneInternetBlock.failed) {
@@ -433,7 +437,7 @@ fun MainSettingsList(
                 Switch(
                     checked = isDarkModeEnabled,
                     onCheckedChange = onDarkModeToggle,
-                    colors = SwitchDefaults.colors(checkedThumbColor = RichGreenButton)
+                    colors = settingsSwitchColors()
                 )
             }
             HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
@@ -458,7 +462,8 @@ fun MainSettingsList(
             // Privacy
             SettingsItemRow(
                 icon = AppIcons.Shield,
-                title = appText("البيانات والخصوصية", "Data & privacy"),
+                title = appText("خصوصية الاستخدام", "Usage privacy"),
+                subtitle = appText("بيانات الشبكة والتخزين والتحكم", "Network data, storage, and controls"),
                 onClick = { onNavigate(SettingsDestination.Privacy) }
             )
             HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
@@ -713,6 +718,172 @@ fun AboutUsDetailScreen(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PrivacySettingsScreen(onBack: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        BackToSettingsButton(onClick = onBack)
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, WatermarkLineColor, RoundedCornerShape(18.dp)),
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(18.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(15.dp))
+                        .background(AppPalette.MintStrong),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = AppIcons.Shield,
+                        contentDescription = null,
+                        tint = AppPalette.Positive,
+                        modifier = Modifier.size(25.dp)
+                    )
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = appText("خصوصية الاستخدام", "Usage privacy"),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = DeepGreenHeader
+                    )
+                    Text(
+                        text = appText(
+                            "ملخص واضح للبيانات التي يديرها التطبيق وكيفية التحكم بها.",
+                            "A clear summary of the data the app manages and how you control it."
+                        ),
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        color = AppPalette.Muted
+                    )
+                }
+            }
+        }
+
+        PrivacyInfoCard(
+            icon = AppIcons.CreditCard,
+            title = appText("ما البيانات التي يعالجها التطبيق؟", "What data does the app handle?"),
+            message = appText(
+                "قد يعالج التطبيق رموز البطاقات وحدودها ومددها، أسماء الأجهزة وعناوين MAC أو عناوين الشبكة، وعدادات استهلاك الجلسات وتفضيلات الإعدادات.",
+                "The app may handle voucher codes, limits and durations; device names and MAC or network addresses; session-usage counters; and app preferences."
+            )
+        )
+
+        PrivacyInfoCard(
+            icon = AppIcons.BarChart,
+            title = appText("لماذا تُستخدم هذه البيانات؟", "Why is this data used?"),
+            message = appText(
+                "للتحقق من البطاقات، تطبيق حدود الصلاحية والاستهلاك، عرض الأجهزة المتصلة، إدارة الحظر، وتقديم ملخصات الاستخدام.",
+                "To validate vouchers, enforce time and data limits, show connected devices, manage blocking, and display usage summaries."
+            )
+        )
+
+        PrivacyInfoCard(
+            icon = AppIcons.SystemMonitor,
+            title = appText("التخزين وصلاحيات الروت", "Storage and root access"),
+            message = appText(
+                "تُحفظ بيانات التشغيل ضمن مساحة التطبيق على هذا الهاتف. تحتاج بعض وظائف مراقبة الشبكة والتحكم بها إلى صلاحية Root لقراءة العدادات وتطبيق قواعد الهوتسبوت والجدار الناري؛ امنحها فقط إذا كنت تثق بالتطبيق.",
+                "Operational data is kept in the app's storage on this phone. Some network-monitoring and control features use root to read counters and apply hotspot/firewall rules; grant root only if you trust the app."
+            )
+        )
+
+        PrivacyInfoCard(
+            icon = AppIcons.Globe,
+            title = appText("المشاركة وحركة الإنترنت", "Sharing and Internet traffic"),
+            message = appText(
+                "لا توفر وظائف التطبيق الحالية مزامنة سحابية لبيانات البطاقات أو سجلاً لصفحات التصفح؛ القياس يعرض أحجام حركة الشبكة. قد تدخل بيانات التطبيق ضمن النسخ الاحتياطية في Android بحسب إعدادات جهازك. تبقى حركة الإنترنت خاضعة لمزود الخدمة والمواقع أو التطبيقات التي تستخدمها.",
+                "The app's current features do not provide cloud syncing of voucher data or a browsing-history log; usage measurement reports traffic volumes. Android device-backup settings may include app data. Internet traffic remains subject to your provider and the sites or apps you use."
+            )
+        )
+
+        PrivacyInfoCard(
+            icon = AppIcons.Info,
+            title = appText("التحكم والحذف", "Controls and deletion"),
+            message = appText(
+                "يمكنك حذف البطاقات من شاشة البطاقات، وتصفير أرقام القياس من صفحة القياس، وتعديل أسماء الأجهزة من لوحة التحكم. أوقف حظر إنترنت الهاتف قبل إزالة التطبيق.",
+                "You can delete vouchers from the voucher screen, reset counters from Usage measurement, and edit device names from the dashboard. Turn off phone Internet blocking before uninstalling the app."
+            )
+        )
+
+        Text(
+            text = appText(
+                "قد تختلف طريقة عرض عدادات الشبكة حسب إصدار Android والجهاز ومزوّد الخدمة.",
+                "Network-counter behavior may vary by Android version, device, and Internet provider."
+            ),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+            fontSize = 11.sp,
+            lineHeight = 17.sp,
+            color = AppPalette.Muted
+        )
+    }
+}
+
+@Composable
+private fun PrivacyInfoCard(icon: ImageVector, title: String, message: String) {
+    val shape = RoundedCornerShape(16.dp)
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, WatermarkLineColor, shape),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(AppPalette.Mint),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = AppPalette.Positive,
+                    modifier = Modifier.size(21.dp)
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = DeepGreenHeader
+                )
+                Text(
+                    text = message,
+                    fontSize = 12.sp,
+                    lineHeight = 19.sp,
+                    color = AppPalette.Muted
+                )
             }
         }
     }

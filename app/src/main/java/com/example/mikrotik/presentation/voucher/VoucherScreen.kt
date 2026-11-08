@@ -129,16 +129,9 @@ fun VoucherScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End,
+                            horizontalArrangement = Arrangement.Start,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = appText("مدة الصلاحية بالأيام", "Validity (days)"),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = DeepGreenHeader
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
                             Box(
                                 modifier = Modifier
                                     .size(20.dp)
@@ -153,6 +146,13 @@ fun VoucherScreen(
                                     modifier = Modifier.size(14.dp)
                                 )
                             }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = appText("مدة الصلاحية بالأيام", "Validity (days)"),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = DeepGreenHeader
+                            )
                         }
                         OutlinedTextField(
                             value = durationDays,
@@ -188,16 +188,9 @@ fun VoucherScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End,
+                            horizontalArrangement = Arrangement.Start,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = appText("حد استهلاك البطاقة", "Data limit"),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = DeepGreenHeader
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
                             Box(
                                 modifier = Modifier
                                     .size(20.dp)
@@ -212,6 +205,13 @@ fun VoucherScreen(
                                     modifier = Modifier.size(14.dp)
                                 )
                             }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = appText("حد استهلاك البطاقة", "Data limit"),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = DeepGreenHeader
+                            )
                         }
 
                         OutlinedTextField(
