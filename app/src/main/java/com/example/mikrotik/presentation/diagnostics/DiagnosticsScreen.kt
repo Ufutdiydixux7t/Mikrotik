@@ -1,5 +1,10 @@
 package com.example.mikrotik.presentation.diagnostics
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -172,7 +178,7 @@ fun MainSettingsList(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         // 1. قسم الأمان والوصول
         SettingsSectionHeader(appText("الأمان والوصول", "Security & Access"))
@@ -823,6 +829,8 @@ fun SystemInfoDetailScreen(
 fun AboutUsDetailScreen(
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
+    val cannotOpenContact = appText("لا يوجد تطبيق متاح لفتح وسيلة التواصل هذه.", "No app is available to open this contact method.")
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -894,7 +902,66 @@ fun AboutUsDetailScreen(
                     textAlign = TextAlign.Start
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
+
+                HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = appText("التواصل", "Contact"),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = DeepGreenHeader,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Start
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                ContactLinkRow(
+                    icon = AppIcons.Facebook,
+                    iconColor = Color(0xFF1877F2),
+                    title = appText("فيسبوك", "Facebook"),
+                    value = appText("صفحة Facebook الرسمية", "Facebook profile"),
+                    onClick = {
+                        openContactTarget(
+                            context,
+                            "https://www.facebook.com/profile.php?id=100043079018929",
+                            cannotOpenContact
+                        )
+                    }
+                )
+                HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
+                ContactLinkRow(
+                    icon = AppIcons.Email,
+                    iconColor = Color(0xFF607D8B),
+                    title = appText("البريد الإلكتروني", "Email"),
+                    value = "doctormohammed7788@gmail.com",
+                    onClick = {
+                        openContactTarget(
+                            context,
+                            "mailto:doctormohammed7788@gmail.com",
+                            cannotOpenContact
+                        )
+                    }
+                )
+                HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
+                ContactLinkRow(
+                    icon = AppIcons.WhatsApp,
+                    iconColor = Color(0xFF25D366),
+                    title = appText("واتساب", "WhatsApp"),
+                    value = "+20 10 31697230",
+                    onClick = {
+                        openContactTarget(
+                            context,
+                            "https://wa.me/201031697230",
+                            cannotOpenContact
+                        )
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -923,64 +990,103 @@ fun AboutUsDetailScreen(
 }
 
 @Composable
+private fun ContactLinkRow(
+    icon: ImageVector,
+    iconColor: Color,
+    title: String,
+    value: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Surface(
+            onClick = onClick,
+            modifier = Modifier.size(44.dp),
+            shape = RoundedCornerShape(50),
+            color = iconColor
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = title,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = DeepGreenHeader
+            )
+            Text(
+                text = value,
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                color = AppPalette.Muted
+            )
+        }
+    }
+}
+
+private fun openContactTarget(context: Context, uri: String, unavailableMessage: String) {
+    try {
+        val contactUri = Uri.parse(uri)
+        val action = if (contactUri.scheme == "mailto") Intent.ACTION_SENDTO else Intent.ACTION_VIEW
+        context.startActivity(Intent(action, contactUri))
+    } catch (_: ActivityNotFoundException) {
+        Toast.makeText(context, unavailableMessage, Toast.LENGTH_SHORT).show()
+    }
+}
+
+@Composable
 private fun PrivacySettingsScreen(onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        BackToSettingsButton(onClick = onBack)
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, WatermarkLineColor, RoundedCornerShape(18.dp)),
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        TextButton(
+            onClick = onBack,
+            modifier = Modifier.align(Alignment.Start)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(18.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(15.dp))
-                        .background(AppPalette.MintStrong),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = AppIcons.Shield,
-                        contentDescription = null,
-                        tint = AppPalette.Positive,
-                        modifier = Modifier.size(25.dp)
-                    )
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = appText("خصوصية الاستخدام", "Usage privacy"),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = DeepGreenHeader
-                    )
-                    Text(
-                        text = appText(
-                            "ملخص واضح للبيانات التي يديرها التطبيق وكيفية التحكم بها.",
-                            "A clear summary of the data the app manages and how you control it."
-                        ),
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp,
-                        color = AppPalette.Muted
-                    )
-                }
-            }
+            Text(
+                text = appText("رجوع إلى الإعدادات", "Back to settings"),
+                color = DeepGreenHeader
+            )
         }
 
-        PrivacyInfoCard(
-            icon = AppIcons.CreditCard,
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Text(
+                text = appText("خصوصية الاستخدام", "Usage privacy"),
+                fontSize = 21.sp,
+                fontWeight = FontWeight.Bold,
+                color = DeepGreenHeader
+            )
+            Text(
+                text = appText(
+                    "ملخص واضح للبيانات التي يديرها التطبيق وكيفية التحكم بها.",
+                    "A clear summary of the data the app manages and how you control it."
+                ),
+                fontSize = 13.sp,
+                lineHeight = 20.sp,
+                color = AppPalette.Muted
+            )
+        }
+
+        PrivacyInfoSection(
             title = appText("ما البيانات التي يعالجها التطبيق؟", "What data does the app handle?"),
             message = appText(
                 "قد يعالج التطبيق رموز البطاقات وحدودها ومددها، أسماء الأجهزة وعناوين MAC أو عناوين الشبكة، وعدادات استهلاك الجلسات وتفضيلات الإعدادات.",
@@ -988,8 +1094,7 @@ private fun PrivacySettingsScreen(onBack: () -> Unit) {
             )
         )
 
-        PrivacyInfoCard(
-            icon = AppIcons.BarChart,
+        PrivacyInfoSection(
             title = appText("لماذا تُستخدم هذه البيانات؟", "Why is this data used?"),
             message = appText(
                 "للتحقق من البطاقات، تطبيق حدود الصلاحية والاستهلاك، عرض الأجهزة المتصلة، إدارة الحظر، وتقديم ملخصات الاستخدام.",
@@ -997,8 +1102,7 @@ private fun PrivacySettingsScreen(onBack: () -> Unit) {
             )
         )
 
-        PrivacyInfoCard(
-            icon = AppIcons.SystemMonitor,
+        PrivacyInfoSection(
             title = appText("التخزين وصلاحيات الروت", "Storage and root access"),
             message = appText(
                 "تُحفظ بيانات التشغيل ضمن مساحة التطبيق على هذا الهاتف. تحتاج بعض وظائف مراقبة الشبكة والتحكم بها إلى صلاحية Root لقراءة العدادات وتطبيق قواعد الهوتسبوت والجدار الناري؛ امنحها فقط إذا كنت تثق بالتطبيق.",
@@ -1006,8 +1110,7 @@ private fun PrivacySettingsScreen(onBack: () -> Unit) {
             )
         )
 
-        PrivacyInfoCard(
-            icon = AppIcons.Globe,
+        PrivacyInfoSection(
             title = appText("المشاركة وحركة الإنترنت", "Sharing and Internet traffic"),
             message = appText(
                 "لا توفر وظائف التطبيق الحالية مزامنة سحابية لبيانات البطاقات أو سجلاً لصفحات التصفح؛ القياس يعرض أحجام حركة الشبكة. قد تدخل بيانات التطبيق ضمن النسخ الاحتياطية في Android بحسب إعدادات جهازك. تبقى حركة الإنترنت خاضعة لمزود الخدمة والمواقع أو التطبيقات التي تستخدمها.",
@@ -1015,8 +1118,7 @@ private fun PrivacySettingsScreen(onBack: () -> Unit) {
             )
         )
 
-        PrivacyInfoCard(
-            icon = AppIcons.Info,
+        PrivacyInfoSection(
             title = appText("التحكم والحذف", "Controls and deletion"),
             message = appText(
                 "يمكنك حذف البطاقات من شاشة البطاقات، وتصفير أرقام القياس من صفحة القياس، وتعديل أسماء الأجهزة من لوحة التحكم. أوقف حظر إنترنت الهاتف قبل إزالة التطبيق.",
@@ -1029,7 +1131,7 @@ private fun PrivacySettingsScreen(onBack: () -> Unit) {
                 "قد تختلف طريقة عرض عدادات الشبكة حسب إصدار Android والجهاز ومزوّد الخدمة.",
                 "Network-counter behavior may vary by Android version, device, and Internet provider."
             ),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
             fontSize = 11.sp,
             lineHeight = 17.sp,
             color = AppPalette.Muted
@@ -1038,54 +1140,25 @@ private fun PrivacySettingsScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun PrivacyInfoCard(icon: ImageVector, title: String, message: String) {
-    val shape = RoundedCornerShape(16.dp)
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, WatermarkLineColor, shape),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+private fun PrivacyInfoSection(title: String, message: String) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(AppPalette.Mint),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = AppPalette.Positive,
-                    modifier = Modifier.size(21.dp)
-                )
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(5.dp)
-            ) {
-                Text(
-                    text = title,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = DeepGreenHeader
-                )
-                Text(
-                    text = message,
-                    fontSize = 12.sp,
-                    lineHeight = 19.sp,
-                    color = AppPalette.Muted
-                )
-            }
-        }
+        Text(
+            text = title,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = DeepGreenHeader
+        )
+        Text(
+            text = message,
+            fontSize = 13.sp,
+            lineHeight = 21.sp,
+            color = AppPalette.Muted
+        )
     }
+    HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
 }
 
 @Composable

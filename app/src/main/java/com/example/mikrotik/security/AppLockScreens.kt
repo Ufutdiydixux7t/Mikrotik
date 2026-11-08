@@ -195,7 +195,7 @@ fun AppLockSettingsScreen(
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         BackToAppLockSettings(onBack)
 
@@ -306,15 +306,41 @@ fun AppLockSettingsScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     LockSectionTitle(appText("متى يُطلب PIN؟", "When should the PIN be required?"))
                     AppLockPolicy.entries.forEach { option ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { policy = option }.padding(vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        val selected = policy == option
+                        Surface(
+                            onClick = { policy = option },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (selected) AppPalette.Mint else AppPalette.Card,
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (selected) AppPalette.Teal else AppPalette.Border
+                            )
                         ) {
-                            RadioButton(selected = policy == option, onClick = { policy = option }, colors = RadioButtonDefaults.colors(selectedColor = AppPalette.Teal))
-                            Spacer(Modifier.width(5.dp))
-                            Column {
-                                Text(policyTitle(option), color = AppPalette.TextNavy, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                                Text(policyDescription(option), color = AppPalette.Muted, fontSize = 11.sp, lineHeight = 15.sp)
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = selected,
+                                    onClick = null,
+                                    colors = RadioButtonDefaults.colors(selectedColor = AppPalette.Teal)
+                                )
+                                Spacer(Modifier.width(5.dp))
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(
+                                        policyTitle(option),
+                                        color = AppPalette.TextNavy,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        policyDescription(option),
+                                        color = AppPalette.Muted,
+                                        fontSize = 11.sp,
+                                        lineHeight = 15.sp
+                                    )
+                                }
                             }
                         }
                     }
@@ -463,8 +489,8 @@ private fun PinField(value: String, onValueChange: (String) -> Unit, label: Stri
 @Composable
 private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().border(1.dp, AppPalette.Border, RoundedCornerShape(18.dp)),
-        shape = RoundedCornerShape(18.dp),
+        modifier = Modifier.fillMaxWidth().border(1.dp, AppPalette.Border, RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = AppPalette.Card),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {

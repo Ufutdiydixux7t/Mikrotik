@@ -714,4 +714,99 @@ object AppIcons {
                 lineTo(13f, 18f)
             }
         }.build()
+
+    val Facebook: ImageVector
+        get() = ImageVector.Builder(
+            name = "Facebook",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(13.8f, 21f)
+                lineTo(13.8f, 13.2f)
+                lineTo(16.5f, 13.2f)
+                lineTo(16.9f, 10.1f)
+                lineTo(13.8f, 10.1f)
+                lineTo(13.8f, 8.2f)
+                curveTo(13.8f, 7.3f, 14.1f, 6.7f, 15.4f, 6.7f)
+                lineTo(17f, 6.7f)
+                lineTo(17f, 3.9f)
+                curveTo(16.2f, 3.8f, 15.3f, 3.7f, 14.2f, 3.7f)
+                curveTo(11.2f, 3.7f, 9.5f, 5.5f, 9.5f, 8.4f)
+                lineTo(9.5f, 10.1f)
+                lineTo(7f, 10.1f)
+                lineTo(7f, 13.2f)
+                lineTo(9.5f, 13.2f)
+                lineTo(9.5f, 21f)
+                close()
+            }
+        }.build()
+
+    val Email: ImageVector
+        get() = ImageVector.Builder(
+            name = "Email",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color.White),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round
+            ) {
+                moveTo(4f, 5.5f)
+                lineTo(20f, 5.5f)
+                curveTo(21.1f, 5.5f, 22f, 6.4f, 22f, 7.5f)
+                lineTo(22f, 16.5f)
+                curveTo(22f, 17.6f, 21.1f, 18.5f, 20f, 18.5f)
+                lineTo(4f, 18.5f)
+                curveTo(2.9f, 18.5f, 2f, 17.6f, 2f, 16.5f)
+                lineTo(2f, 7.5f)
+                curveTo(2f, 6.4f, 2.9f, 5.5f, 4f, 5.5f)
+                close()
+                moveTo(3f, 7f)
+                lineTo(12f, 13.5f)
+                lineTo(21f, 7f)
+            }
+        }.build()
+
+    val WhatsApp: ImageVector
+        get() = ImageVector.Builder(
+            name = "WhatsApp",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color.White),
+                strokeLineWidth = 1.8f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round
+            ) {
+                moveTo(20.5f, 11.7f)
+                curveTo(20.5f, 16.4f, 16.7f, 20.2f, 12f, 20.2f)
+                curveTo(10.4f, 20.2f, 8.9f, 19.8f, 7.6f, 19f)
+                lineTo(3.5f, 20.3f)
+                lineTo(4.8f, 16.4f)
+                curveTo(4f, 15.1f, 3.5f, 13.5f, 3.5f, 11.8f)
+                curveTo(3.5f, 7.1f, 7.3f, 3.3f, 12f, 3.3f)
+                curveTo(16.7f, 3.3f, 20.5f, 7.1f, 20.5f, 11.7f)
+                close()
+                moveTo(8.2f, 7.6f)
+                curveTo(7.8f, 7.6f, 7.4f, 8.1f, 7.4f, 8.6f)
+                curveTo(7.4f, 11.5f, 10.1f, 15.3f, 13.8f, 16.3f)
+                curveTo(14.9f, 16.6f, 16.1f, 15.8f, 16.4f, 14.8f)
+                lineTo(14.2f, 13.7f)
+                lineTo(12.9f, 15f)
+                curveTo(11.4f, 14.4f, 9.7f, 12.8f, 9.1f, 11.3f)
+                lineTo(10.3f, 10f)
+                lineTo(9.3f, 7.6f)
+                close()
+            }
+        }.build()
 }
