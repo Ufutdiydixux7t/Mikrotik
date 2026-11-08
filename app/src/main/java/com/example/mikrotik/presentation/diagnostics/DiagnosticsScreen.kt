@@ -35,6 +35,7 @@ private val PageBackground get() = AppPalette.Background
 private val SeamlessCardBg get() = AppPalette.Card
 private val WatermarkLineColor get() = AppPalette.Border
 
+@Composable
 private fun settingsSwitchColors() = SwitchDefaults.colors(
     checkedThumbColor = Color.White,
     checkedTrackColor = AppPalette.Positive,
