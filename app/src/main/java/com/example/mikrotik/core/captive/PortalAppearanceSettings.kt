@@ -33,6 +33,18 @@ enum class PortalTheme(
     RED(
         "red", "أحمر", "#D84343", "#B52D36", "#FCE8E9",
         "#FFF0F0", "#F4C9CA", "#CC4249", "#E99A9D", "rgba(216,67,67,0.18)"
+    ),
+    PINK(
+        "pink", "وردي", "#C2185B", "#991548", "#FCE4EC",
+        "#FFF2F7", "#F4BDD1", "#C2185B", "#E889AE", "rgba(194,24,91,0.18)"
+    ),
+    PURPLE(
+        "purple", "بنفسجي", "#6B4FA1", "#523A80", "#EEE6FA",
+        "#F7F3FC", "#D7C8EF", "#7558AA", "#B49AD6", "rgba(107,79,161,0.18)"
+    ),
+    ORANGE(
+        "orange", "برتقالي", "#B45309", "#8F4207", "#FFF0E4",
+        "#FFF8F0", "#F9D4B5", "#B45309", "#E8A06B", "rgba(180,83,9,0.18)"
     );
 
     companion object {

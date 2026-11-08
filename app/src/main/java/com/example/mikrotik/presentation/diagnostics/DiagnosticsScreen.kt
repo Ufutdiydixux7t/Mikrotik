@@ -214,22 +214,14 @@ fun MainSettingsList(
                     Row(
                         modifier = Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (phoneInternetBlock.isEnabled) Color(0xFFFFEBEE) else AppPalette.Mint),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = AppIcons.Shield,
-                                contentDescription = appText("حظر إنترنت تطبيقات الهاتف", "Block phone apps' Internet"),
-                                tint = if (phoneInternetBlock.isEnabled) Color(0xFFC62828) else RichGreenButton,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
+                        Icon(
+                            imageVector = AppIcons.Block,
+                            contentDescription = appText("حظر إنترنت تطبيقات الهاتف", "Block phone apps' Internet"),
+                            tint = if (phoneInternetBlock.isEnabled) Color(0xFFC62828) else RichGreenButton,
+                            modifier = Modifier.size(23.dp)
+                        )
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -241,19 +233,6 @@ fun MainSettingsList(
                                     fontWeight = FontWeight.SemiBold,
                                     color = DeepGreenHeader
                                 )
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(Color(0xFFFFF3E0))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = appText("يتطلب روت", "Root required"),
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFE65100)
-                                    )
-                                }
                             }
                             Text(
                                 text = appText(
@@ -319,6 +298,9 @@ fun MainSettingsList(
                     PortalTheme.GREEN -> appText("أخضر", "Green")
                     PortalTheme.BLUE -> appText("أزرق", "Blue")
                     PortalTheme.RED -> appText("أحمر", "Red")
+                    PortalTheme.PINK -> appText("وردي", "Pink")
+                    PortalTheme.PURPLE -> appText("بنفسجي", "Purple")
+                    PortalTheme.ORANGE -> appText("برتقالي", "Orange")
                 }
                 SettingsItemRow(
                     icon = AppIcons.Login,
@@ -369,22 +351,14 @@ fun MainSettingsList(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(AppPalette.Mint),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = AppIcons.Moon,
-                                contentDescription = appText("الوضع الداكن", "Dark mode"),
-                                tint = RichGreenButton,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
+                        Icon(
+                            imageVector = AppIcons.Moon,
+                            contentDescription = appText("الوضع الداكن", "Dark mode"),
+                            tint = RichGreenButton,
+                            modifier = Modifier.size(23.dp)
+                        )
                         Column {
                             Text(
                                 text = appText("الوضع الداكن", "Dark mode"),
@@ -513,6 +487,7 @@ private fun SettingsSectionHeader(title: String) {
 }
 
 @Composable
+@Suppress("UNUSED_PARAMETER")
 fun SettingsItemRow(
     icon: ImageVector,
     iconContainerColor: Color = AppPalette.Mint,
@@ -534,22 +509,14 @@ fun SettingsItemRow(
         Row(
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(iconContainerColor),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = title,
-                    tint = iconTintColor,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = iconTintColor,
+                modifier = Modifier.size(22.dp)
+            )
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -641,6 +608,12 @@ private fun LanguageSettingsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
+                            .background(if (language == option) AppPalette.Mint.copy(alpha = 0.45f) else Color.Transparent)
+                            .border(
+                                1.dp,
+                                if (language == option) RichGreenButton.copy(alpha = 0.45f) else Color.Transparent,
+                                RoundedCornerShape(12.dp)
+                            )
                             .clickable { onLanguageChange(option) }
                             .padding(horizontal = 8.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -673,7 +646,10 @@ private fun PortalAppearanceSettingsScreen(
     val colors = mapOf(
         PortalTheme.GREEN to Color(0xFF138D86),
         PortalTheme.BLUE to Color(0xFF1976D2),
-        PortalTheme.RED to Color(0xFFD84343)
+        PortalTheme.RED to Color(0xFFD84343),
+        PortalTheme.PINK to Color(0xFFC2185B),
+        PortalTheme.PURPLE to Color(0xFF6B4FA1),
+        PortalTheme.ORANGE to Color(0xFFB45309)
     )
 
     Column(
@@ -733,38 +709,52 @@ private fun PortalAppearanceSettingsScreen(
                     fontWeight = FontWeight.SemiBold,
                     color = DeepGreenHeader
                 )
-                PortalTheme.values().forEach { theme ->
-                    val selected = appearance.theme == theme
+                PortalTheme.values().toList().chunked(2).forEach { themes ->
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { viewModel.updatePortalTheme(theme) }
-                            .background(if (selected) colors.getValue(theme).copy(alpha = 0.08f) else Color.Transparent)
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        RadioButton(
-                            selected = selected,
-                            onClick = { viewModel.updatePortalTheme(theme) },
-                            colors = RadioButtonDefaults.colors(selectedColor = colors.getValue(theme))
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(18.dp)
-                                .background(colors.getValue(theme), RoundedCornerShape(9.dp))
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = when (theme) {
-                                PortalTheme.GREEN -> appText("أخضر", "Green")
-                                PortalTheme.BLUE -> appText("أزرق", "Blue")
-                                PortalTheme.RED -> appText("أحمر", "Red")
-                            },
-                            color = DeepGreenHeader,
-                            fontSize = 14.sp,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                        )
+                        themes.forEach { theme ->
+                            val selected = appearance.theme == theme
+                            val accent = colors.getValue(theme)
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(if (selected) accent.copy(alpha = 0.08f) else SeamlessCardBg)
+                                    .border(
+                                        1.dp,
+                                        if (selected) accent else WatermarkLineColor,
+                                        RoundedCornerShape(14.dp)
+                                    )
+                                    .clickable { viewModel.updatePortalTheme(theme) }
+                                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(9.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(16.dp)
+                                        .background(accent, RoundedCornerShape(50))
+                                )
+                                Text(
+                                    text = when (theme) {
+                                        PortalTheme.GREEN -> appText("أخضر", "Green")
+                                        PortalTheme.BLUE -> appText("أزرق", "Blue")
+                                        PortalTheme.RED -> appText("أحمر", "Red")
+                                        PortalTheme.PINK -> appText("وردي", "Pink")
+                                        PortalTheme.PURPLE -> appText("بنفسجي", "Purple")
+                                        PortalTheme.ORANGE -> appText("برتقالي", "Orange")
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    color = if (selected) accent else DeepGreenHeader,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                        if (themes.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
             }
