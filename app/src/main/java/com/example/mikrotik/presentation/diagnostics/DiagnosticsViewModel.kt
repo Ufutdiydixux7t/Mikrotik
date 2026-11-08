@@ -1,13 +1,16 @@
 package com.example.mikrotik.presentation.diagnostics
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mikrotik.core.captive.PortalAppearance
 import com.example.mikrotik.core.captive.PortalAppearanceSettings
 import com.example.mikrotik.core.captive.PortalTheme
+import com.example.mikrotik.core.network.IptablesManager
 import com.example.mikrotik.core.root.RootDiagnostics
 import com.example.mikrotik.core.root.SystemDiagnosticReport
 import com.example.mikrotik.data.db.dao.VoucherDao
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,11 +27,19 @@ sealed class DiagnosticsUiState {
     data class Error(val message: String) : DiagnosticsUiState()
 }
 
+data class PhoneInternetBlockUiState(
+    val isEnabled: Boolean = false,
+    val isLoading: Boolean = true,
+    val failed: Boolean = false
+)
+
 @HiltViewModel
 class DiagnosticsViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val rootDiagnostics: RootDiagnostics,
     private val voucherDao: VoucherDao,
-    private val portalAppearanceSettings: PortalAppearanceSettings
+    private val portalAppearanceSettings: PortalAppearanceSettings,
+    private val iptablesManager: IptablesManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<DiagnosticsUiState>(DiagnosticsUiState.Loading)
@@ -37,8 +48,12 @@ class DiagnosticsViewModel @Inject constructor(
     private val _portalAppearance = MutableStateFlow(portalAppearanceSettings.current())
     val portalAppearance: StateFlow<PortalAppearance> = _portalAppearance.asStateFlow()
 
+    private val _phoneInternetBlock = MutableStateFlow(PhoneInternetBlockUiState())
+    val phoneInternetBlock: StateFlow<PhoneInternetBlockUiState> = _phoneInternetBlock.asStateFlow()
+
     init {
         runDiagnostics()
+        refreshPhoneInternetBlockStatus()
     }
 
     fun runDiagnostics() {
@@ -77,5 +92,33 @@ class DiagnosticsViewModel @Inject constructor(
     fun updatePortalTheme(theme: PortalTheme) {
         portalAppearanceSettings.saveTheme(theme)
         _portalAppearance.value = portalAppearanceSettings.current()
+    }
+
+    fun refreshPhoneInternetBlockStatus() {
+        viewModelScope.launch {
+            val status = iptablesManager.isPhoneAppsInternetBlocked(context.applicationInfo.uid)
+            _phoneInternetBlock.value = PhoneInternetBlockUiState(
+                isEnabled = status ?: _phoneInternetBlock.value.isEnabled,
+                isLoading = false,
+                failed = status == null
+            )
+        }
+    }
+
+    fun setPhoneAppsInternetBlocked(enabled: Boolean) {
+        if (_phoneInternetBlock.value.isLoading) return
+        viewModelScope.launch {
+            _phoneInternetBlock.value = _phoneInternetBlock.value.copy(isLoading = true, failed = false)
+            val applied = iptablesManager.setPhoneAppsInternetBlocked(
+                appUid = context.applicationInfo.uid,
+                blocked = enabled
+            )
+            val status = iptablesManager.isPhoneAppsInternetBlocked(context.applicationInfo.uid)
+            _phoneInternetBlock.value = PhoneInternetBlockUiState(
+                isEnabled = status ?: _phoneInternetBlock.value.isEnabled,
+                isLoading = false,
+                failed = !applied || status == null || status != enabled
+            )
+        }
     }
 }

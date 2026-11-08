@@ -67,6 +67,7 @@ fun UsageMeasurementScreen(
 
     LaunchedEffect(context) {
         while (isActive) {
+            UsageMeasurementStore.sampleSourceTraffic(context)
             snapshot = UsageMeasurementStore.read(context)
             delay(1_000L)
         }
@@ -99,8 +100,8 @@ fun UsageMeasurementScreen(
 
         Text(
             text = appText(
-                "تعرض هذه الصفحة عداد الهاتف ومجموع استهلاك البطاقات كلٌّ على حدة.",
-                "This page shows the phone counter and combined voucher usage separately."
+                "تعرض إجمالي حركة واجهة الإنترنت، ومجموع استهلاك الأجهزة المتصلة، وتقدير ما استهلكه الهاتف نفسه.",
+                "Shows total active-upstream traffic, connected-device usage, and an estimate of the phone's own usage."
             ),
             color = AppPalette.Muted,
             fontSize = 13.sp,
@@ -109,29 +110,62 @@ fun UsageMeasurementScreen(
 
         MeasurementCard(
             icon = AppIcons.BarChart,
-            title = appText("استهلاك الإنترنت اليومي", "Daily internet usage"),
-            value = if (snapshot.deviceCounterAvailable) formatBytes(snapshot.deviceTodayBytes)
-            else appText("غير متاح", "Unavailable"),
+            title = appText("إجمالي الاستهلاك من مصدر الإنترنت اليوم", "Total usage from Internet source today"),
+            value = formatBytes(snapshot.sourceTodayBytes),
             detail = appText(
-                "عداد حركة واجهات الهاتف عبر Wi-Fi وبيانات الهاتف.",
-                "Phone network-interface traffic over Wi-Fi and mobile data."
+                if (snapshot.sourceCounterAvailable) {
+                    "عداد واجهة الإنترنت النشطة، ويشمل الهاتف والأجهزة التي يمرر لها الاتصال."
+                } else {
+                    "العداد غير متاح حالياً؛ تحقق من اتصال الهاتف بالإنترنت."
+                },
+                if (snapshot.sourceCounterAvailable) {
+                    "Active Internet-interface counter; includes the phone and devices routed through it."
+                } else {
+                    "Counter is currently unavailable; check the phone's Internet connection."
+                }
             )
         )
 
         MeasurementCard(
             icon = AppIcons.CreditCard,
-            title = appText("مجموع استهلاك البطاقات", "Combined voucher usage"),
-            value = formatBytes(snapshot.voucherTotalBytes),
+            title = appText("استهلاك الأجهزة الأخرى اليوم", "Other devices' usage today"),
+            value = formatBytes(snapshot.clientsTodayBytes),
             detail = appText(
-                "منذ آخر تصفير • استهلاك البطاقات اليوم: ${formatBytes(snapshot.vouchersTodayBytes)}",
-                "Since last reset • voucher usage today: ${formatBytes(snapshot.vouchersTodayBytes)}"
+                "مجموع ما سجّلته عدادات جلسات الأجهزة المتصلة ببطاقات صالحة. الإجمالي منذ التصفير: ${formatBytes(snapshot.clientsTotalBytes)}",
+                "Sum recorded for connected devices with valid voucher sessions. Since reset: ${formatBytes(snapshot.clientsTotalBytes)}"
             )
         )
 
+        MeasurementCard(
+            icon = AppIcons.Smartphone,
+            title = appText("استهلاك الهاتف وتطبيقاته اليوم (تقديري)", "Phone and apps usage today (estimated)"),
+            value = if (snapshot.sourceCounterAvailable || snapshot.sourceTodayBytes > 0L) {
+                formatBytes(snapshot.phoneEstimateTodayBytes)
+            } else {
+                appText("غير متاح", "Unavailable")
+            },
+            detail = appText(
+                "تقدير الهاتف = إجمالي المصدر − استهلاك الأجهزة الأخرى.",
+                "Phone estimate = source total − other devices' usage."
+            )
+        )
+
+        if (snapshot.clientsExceedSourceBytes > 0L) {
+            Text(
+                text = appText(
+                    "تنبيه: عداد الأجهزة أعلى من عداد المصدر بـ ${formatBytes(snapshot.clientsExceedSourceBytes)}. قد تختلف مصادر القياس أو توقيتها؛ لذلك يظهر استهلاك الهاتف صفراً بدلاً من رقم سالب.",
+                    "Warning: the client counter exceeds the source counter by ${formatBytes(snapshot.clientsExceedSourceBytes)}. Meter sources or timing may differ, so phone usage is shown as zero rather than a negative value."
+                ),
+                color = Color(0xFFB3261E),
+                fontSize = 12.sp,
+                lineHeight = 18.sp
+            )
+        }
+
         Text(
             text = appText(
-                "قد يشمل عداد الهاتف حركة الأجهزة المارة عبر نقطة الاتصال، حسب عدادات النظام.",
-                "The phone counter may include client traffic forwarded through the hotspot, depending on Android's interface counters."
+                "الأجهزة الأخرى تُحسب من عدادات جلساتها النشطة؛ إذا تعذر عداد جهاز فقد يظهر استهلاكه ضمن الفرق المنسوب للهاتف. قد يوجد فرق بسيط بسبب توقيت القياس.",
+                "Other devices are measured from active session counters; if a device counter is unavailable, its usage may appear in the phone estimate. Small timing differences are also possible."
             ),
             color = AppPalette.Muted,
             fontSize = 11.sp,
@@ -173,8 +207,8 @@ fun UsageMeasurementScreen(
             text = {
                 Text(
                     appText(
-                        "سيُصفّر عداد الهاتف ومجموع استهلاك البطاقات فقط. لن تُحذف البطاقات ولن تتغير حصصها؛ يبدأ القياس من جديد بعد التصفير.",
-                        "Only the phone and combined voucher usage statistics will be reset. Vouchers and their limits will not change; measurement starts again afterward."
+                        "سيُصفّر إجمالي المصدر واستهلاك الأجهزة وتقدير الهاتف فقط. لن تُحذف البطاقات ولن تتغير حصصها؛ يبدأ القياس من جديد بعد التصفير.",
+                        "Only the source total, client usage, and phone estimate will be reset. Vouchers and their limits will not change; measurement starts again afterward."
                     ),
                     color = AppPalette.Muted
                 )
@@ -182,12 +216,12 @@ fun UsageMeasurementScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val deviceCounterAvailable = UsageMeasurementStore.reset(context)
+                        val sourceCounterAvailable = UsageMeasurementStore.reset(context)
                         snapshot = UsageMeasurementStore.read(context)
-                        resetMessage = if (deviceCounterAvailable) {
-                            appText("تم تصفير الأرقام وبدأ القياس من جديد.", "Counters reset; measurement has restarted.")
+                        resetMessage = if (sourceCounterAvailable) {
+                            appText("تم تصفير الأرقام وإعادة معايرة عداد المصدر.", "Counters reset and the source counter has been re-baselined.")
                         } else {
-                            appText("تم التصفير؛ سيبدأ قياس الهاتف عند توفر عداد النظام.", "Reset complete; phone measurement will resume when the system counter is available.")
+                            appText("تم التصفير؛ سيبدأ القياس عند توفر اتصال إنترنت نشط.", "Reset complete; measurement will resume when an active Internet connection is available.")
                         }
                         onResetComplete()
                         showResetConfirmation = false

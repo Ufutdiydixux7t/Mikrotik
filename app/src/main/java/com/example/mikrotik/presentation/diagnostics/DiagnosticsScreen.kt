@@ -84,6 +84,7 @@ fun DiagnosticsScreen(
             when (currentDestination) {
                 SettingsDestination.MainSettings -> {
                     MainSettingsList(
+                        viewModel = viewModel,
                         isDarkModeEnabled = isDarkModeEnabled,
                         onDarkModeToggle = onDarkModeToggle,
                         language = language,
@@ -311,11 +312,14 @@ private fun PortalAppearanceSettingsScreen(
 
 @Composable
 fun MainSettingsList(
+    viewModel: DiagnosticsViewModel,
     isDarkModeEnabled: Boolean,
     onDarkModeToggle: (Boolean) -> Unit,
     language: AppLanguage,
     onNavigate: (SettingsDestination) -> Unit
 ) {
+    val phoneInternetBlock by viewModel.phoneInternetBlock.collectAsState()
+    var showInternetBlockConfirmation by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -337,9 +341,68 @@ fun MainSettingsList(
             SettingsItemRow(
                 icon = AppIcons.BarChart,
                 title = appText("القياس", "Usage measurement"),
-                subtitle = appText("استهلاك الهاتف ومجموع البطاقات", "Phone and combined voucher usage"),
+                subtitle = appText("إجمالي المصدر واستهلاك الأجهزة والهاتف", "Source, connected devices, and phone usage"),
                 onClick = { onNavigate(SettingsDestination.Measurement) }
             )
+            HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = AppIcons.Shield,
+                        contentDescription = appText("حظر إنترنت تطبيقات الهاتف", "Block phone apps' Internet"),
+                        tint = RichGreenButton,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(
+                            text = appText("حظر إنترنت تطبيقات الهاتف", "Block phone apps' Internet"),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = DeepGreenHeader
+                        )
+                        Text(
+                            text = appText(
+                                "يتطلب روت؛ يستثني MikroTik وDNS والشبكة المحلية، ولا يوقف إنترنت الأجهزة المتصلة.",
+                                "Requires root; keeps MikroTik, DNS and local LAN available, and does not block hotspot clients."
+                            ),
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp,
+                            color = AppPalette.Muted
+                        )
+                    }
+                }
+                Switch(
+                    checked = phoneInternetBlock.isEnabled,
+                    onCheckedChange = { enabled ->
+                        if (enabled) showInternetBlockConfirmation = true
+                        else viewModel.setPhoneAppsInternetBlocked(false)
+                    },
+                    enabled = !phoneInternetBlock.isLoading,
+                    colors = SwitchDefaults.colors(checkedThumbColor = RichGreenButton)
+                )
+            }
+            if (phoneInternetBlock.failed) {
+                Text(
+                    text = appText(
+                        "تعذر التحقق من قواعد الروت أو تطبيقها. لم يتم تأكيد الحظر.",
+                        "Could not verify or apply the root firewall rules; blocking is not confirmed."
+                    ),
+                    color = Color(0xFFB3261E),
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
             HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
 
             // Dark Mode Switch Row
@@ -406,6 +469,39 @@ fun MainSettingsList(
                 title = appText("معلومات النظام", "System information"),
                 onClick = { onNavigate(SettingsDestination.SystemInfo) }
             )
+
+            if (showInternetBlockConfirmation) {
+                AlertDialog(
+                    onDismissRequest = { showInternetBlockConfirmation = false },
+                    title = {
+                        Text(appText("تأكيد حظر إنترنت تطبيقات الهاتف", "Confirm blocking phone apps' Internet"))
+                    },
+                    text = {
+                        Text(
+                            appText(
+                                "سيُمنع الإنترنت عن التطبيقات الأخرى وخدمات النظام. يبقى MikroTik والأجهزة المتصلة بالهوتسبوت مستثناة. قد تبقى قواعد الروت فعالة حتى توقف المفتاح أو تعيد تشغيل الهاتف؛ أوقف الحظر قبل حذف التطبيق.",
+                                "Other apps and system services will lose Internet access. MikroTik and hotspot clients remain exempt. Root rules may stay active until you switch this off or reboot; turn it off before uninstalling the app."
+                            )
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                showInternetBlockConfirmation = false
+                                viewModel.setPhoneAppsInternetBlocked(true)
+                            }
+                        ) {
+                            Text(appText("تفعيل الحظر", "Enable blocking"), color = Color(0xFFB3261E))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showInternetBlockConfirmation = false }) {
+                            Text(appText("إلغاء", "Cancel"), color = DeepGreenHeader)
+                        }
+                    },
+                    containerColor = SeamlessCardBg
+                )
+            }
         }
     }
 }

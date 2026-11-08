@@ -41,6 +41,7 @@ class BandwidthTrackerService : Service() {
     private var lastBlockedEnforcementAt = 0L
     private var cachedApInterface: String? = null
     private var lastApInterfaceLookupAt = 0L
+    private var lastSourceTrafficSampleAt = 0L
     private val usagePreferences by lazy { getSharedPreferences("voucher_usage_counters", MODE_PRIVATE) }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -91,6 +92,7 @@ class BandwidthTrackerService : Service() {
     }
 
     private suspend fun trackBandwidthAndEnforceQuotas() {
+        sampleSourceTrafficIfDue()
         enforceBlockedDevicesIfDue()
         val sessions = activeSessionDao.getActiveSessionsSnapshot()
             .distinctBy { it.macAddress.lowercase() }
@@ -187,6 +189,15 @@ class BandwidthTrackerService : Service() {
         }
     }
 
+    private fun sampleSourceTrafficIfDue() {
+        val now = SystemClock.elapsedRealtime()
+        if (lastSourceTrafficSampleAt != 0L && now - lastSourceTrafficSampleAt < SOURCE_USAGE_SAMPLE_INTERVAL_MS) return
+        lastSourceTrafficSampleAt = now
+        if (!UsageMeasurementStore.sampleSourceTraffic(this)) {
+            Log.d("BandwidthTracker", "Active upstream traffic counter is not available")
+        }
+    }
+
     private suspend fun getCachedApInterface(): String? {
         val now = SystemClock.elapsedRealtime()
         if (lastApInterfaceLookupAt == 0L || now - lastApInterfaceLookupAt >= AP_INTERFACE_REFRESH_INTERVAL_MS) {
@@ -262,5 +273,6 @@ class BandwidthTrackerService : Service() {
     private companion object {
         const val BLOCKED_ENFORCEMENT_INTERVAL_MS = 5_000L
         const val AP_INTERFACE_REFRESH_INTERVAL_MS = 5_000L
+        const val SOURCE_USAGE_SAMPLE_INTERVAL_MS = 5_000L
     }
 }
