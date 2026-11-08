@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.sp
 import com.example.mikrotik.core.captive.PortalTheme
 import com.example.mikrotik.core.root.RootStatus
 import com.example.mikrotik.core.root.SystemDiagnosticReport
+import com.example.mikrotik.security.AppLockSettingsScreen
+import com.example.mikrotik.security.AppLockViewModel
 import com.example.mikrotik.presentation.ui.components.AppTopBar
 import com.example.mikrotik.presentation.ui.localization.AppLanguage
 import com.example.mikrotik.presentation.ui.localization.LocalAppLanguage
@@ -53,6 +55,7 @@ sealed class SettingsDestination {
     object AboutUs : SettingsDestination()
     object Privacy : SettingsDestination()
     object Language : SettingsDestination()
+    object AppLock : SettingsDestination()
 }
 
 @Composable
@@ -62,7 +65,8 @@ fun DiagnosticsScreen(
     onDarkModeToggle: (Boolean) -> Unit,
     language: AppLanguage,
     onLanguageChange: (AppLanguage) -> Unit,
-    onUsageReset: () -> Unit
+    onUsageReset: () -> Unit,
+    appLockViewModel: AppLockViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var currentDestination by remember { mutableStateOf<SettingsDestination>(SettingsDestination.MainSettings) }
@@ -80,6 +84,7 @@ fun DiagnosticsScreen(
                 SettingsDestination.AboutUs -> appText("نظرة عنا", "About")
                 SettingsDestination.Privacy -> appText("خصوصية الاستخدام", "Usage privacy")
                 SettingsDestination.Language -> appText("اللغة", "Language")
+                SettingsDestination.AppLock -> appText("قفل التطبيق", "App lock")
             },
             subtitle = "AL RABDI NET",
             startIcon = AppIcons.SettingsGear
@@ -95,6 +100,7 @@ fun DiagnosticsScreen(
                 SettingsDestination.MainSettings -> {
                     MainSettingsList(
                         viewModel = viewModel,
+                        appLockViewModel = appLockViewModel,
                         isDarkModeEnabled = isDarkModeEnabled,
                         onDarkModeToggle = onDarkModeToggle,
                         language = language,
@@ -134,6 +140,12 @@ fun DiagnosticsScreen(
                     LanguageSettingsScreen(
                         language = language,
                         onLanguageChange = onLanguageChange,
+                        onBack = { currentDestination = SettingsDestination.MainSettings }
+                    )
+                }
+                SettingsDestination.AppLock -> {
+                    AppLockSettingsScreen(
+                        viewModel = appLockViewModel,
                         onBack = { currentDestination = SettingsDestination.MainSettings }
                     )
                 }
@@ -318,6 +330,7 @@ private fun PortalAppearanceSettingsScreen(
 @Composable
 fun MainSettingsList(
     viewModel: DiagnosticsViewModel,
+    appLockViewModel: AppLockViewModel,
     isDarkModeEnabled: Boolean,
     onDarkModeToggle: (Boolean) -> Unit,
     language: AppLanguage,
@@ -348,6 +361,19 @@ fun MainSettingsList(
                 title = appText("القياس", "Usage measurement"),
                 subtitle = appText("إجمالي المصدر واستهلاك الأجهزة والهاتف", "Source, connected devices, and phone usage"),
                 onClick = { onNavigate(SettingsDestination.Measurement) }
+            )
+            HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
+
+            val appLockConfig by appLockViewModel.config.collectAsState()
+            SettingsItemRow(
+                icon = AppIcons.Shield,
+                title = appText("قفل التطبيق", "App lock"),
+                subtitle = if (appLockConfig.enabled) {
+                    appText("مفعّل • ${appLockConfig.userNames.size} مستخدم", "Enabled • ${appLockConfig.userNames.size} user(s)")
+                } else {
+                    appText("حماية الدخول برمز PIN", "Protect app access with a PIN")
+                },
+                onClick = { onNavigate(SettingsDestination.AppLock) }
             )
             HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
 

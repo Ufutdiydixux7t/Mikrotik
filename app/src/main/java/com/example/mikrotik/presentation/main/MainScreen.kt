@@ -28,6 +28,7 @@ import com.example.mikrotik.presentation.ui.localization.appText
 import com.example.mikrotik.presentation.ui.theme.AppIcons
 import com.example.mikrotik.presentation.voucher.VoucherScreen
 import com.example.mikrotik.presentation.voucher.VoucherViewModel
+import com.example.mikrotik.security.AppLockViewModel
 import com.example.mikrotik.ui.theme.AppPalette
 
 private val DeepGreenHeader get() = AppPalette.TextNavy
@@ -50,6 +51,7 @@ fun MainScreen(
     diagnosticsViewModel: DiagnosticsViewModel,
     voucherViewModel: VoucherViewModel,
     dashboardViewModel: DashboardViewModel,
+    appLockViewModel: AppLockViewModel,
     isDarkModeEnabled: Boolean,
     onDarkModeToggle: (Boolean) -> Unit,
     language: AppLanguage,
@@ -153,7 +155,8 @@ fun MainScreen(
                             onDarkModeToggle = onDarkModeToggle,
                             language = language,
                             onLanguageChange = onLanguageChange,
-                            onUsageReset = { homeViewModel.refreshAll() }
+                            onUsageReset = { homeViewModel.refreshAll() },
+                            appLockViewModel = appLockViewModel
                         )
                     }
                 }
