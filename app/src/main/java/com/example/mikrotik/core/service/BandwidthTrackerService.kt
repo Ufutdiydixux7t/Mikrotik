@@ -7,11 +7,13 @@ import android.app.Service
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.mikrotik.core.hotspot.HotspotController
 import com.example.mikrotik.core.network.IptablesManager
+import com.example.mikrotik.core.network.UsageCounterMath
 import com.example.mikrotik.core.network.UsageMeasurementStore
 import com.example.mikrotik.core.session.SessionTransitionLock
 import com.example.mikrotik.data.db.dao.ActiveSessionDao
@@ -44,6 +46,10 @@ class BandwidthTrackerService : Service() {
     private var cachedApInterface: String? = null
     private var lastApInterfaceLookupAt = 0L
     private var lastSourceTrafficSampleAt = 0L
+    private var lastIptablesVerificationAt = 0L
+    private var lastWakeLockRenewalAt = 0L
+    private var trackingWakeLock: PowerManager.WakeLock? = null
+    private val lastCounterDiagnosticAt = mutableMapOf<String, Long>()
     private val usagePreferences by lazy { getSharedPreferences("voucher_usage_counters", MODE_PRIVATE) }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -51,7 +57,34 @@ class BandwidthTrackerService : Service() {
     override fun onCreate() {
         super.onCreate()
         startForegroundServiceNotification()
+        acquireTrackingWakeLock()
         startTrackingJob()
+    }
+
+    private fun acquireTrackingWakeLock() {
+        try {
+            val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+            trackingWakeLock = powerManager.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK,
+                "MiniMikrotik:BandwidthTracker"
+            ).apply { setReferenceCounted(false) }
+            renewTrackingWakeLockIfNeeded()
+        } catch (exception: Exception) {
+            Log.e("BandwidthTracker", "Could not keep the tracking CPU awake", exception)
+        }
+    }
+
+    private fun renewTrackingWakeLockIfNeeded() {
+        val wakeLock = trackingWakeLock ?: return
+        val now = SystemClock.elapsedRealtime()
+        if (wakeLock.isHeld && now - lastWakeLockRenewalAt < WAKE_LOCK_RENEW_INTERVAL_MS) return
+        try {
+            if (wakeLock.isHeld) wakeLock.release()
+            wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS)
+            lastWakeLockRenewalAt = now
+        } catch (exception: Exception) {
+            Log.e("BandwidthTracker", "Could not renew the tracking wake lock", exception)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -83,6 +116,7 @@ class BandwidthTrackerService : Service() {
     private fun startTrackingJob() {
         trackingJob = serviceScope.launch {
             while (isActive) {
+                renewTrackingWakeLockIfNeeded()
                 try {
                     trackBandwidthAndEnforceQuotas()
                 } catch (exception: Exception) {
@@ -99,6 +133,10 @@ class BandwidthTrackerService : Service() {
         val sessions = activeSessionDao.getActiveSessionsSnapshot()
             .distinctBy { it.macAddress.lowercase() }
         val apInterface = if (sessions.isNotEmpty()) getCachedApInterface() else null
+        val nowElapsed = SystemClock.elapsedRealtime()
+        val verifyWithIptables = lastIptablesVerificationAt == 0L ||
+            nowElapsed - lastIptablesVerificationAt >= IPTABLES_VERIFICATION_INTERVAL_MS
+        if (verifyWithIptables) lastIptablesVerificationAt = nowElapsed
         for (session in sessions) {
             sessionTransitionLock.lock()
             try {
@@ -146,40 +184,77 @@ class BandwidthTrackerService : Service() {
             }
 
             val wifiCounterBytes = apInterface?.let { iptablesManager.getWifiStationUsageBytes(mac, it) }
-            val counterSource = if (wifiCounterBytes != null) "wifi" else "iptables"
-            val counterBytes = wifiCounterBytes ?: iptablesManager.getDeviceUsageBytes(mac, session.ipAddress)
-            if (counterBytes != null) {
+            val iptablesCounterBytes = if (wifiCounterBytes == null || verifyWithIptables) {
+                iptablesManager.getDeviceUsageBytes(mac, session.ipAddress)
+            } else {
+                null
+            }
+            if (wifiCounterBytes != null || iptablesCounterBytes != null) {
                 val identity = "${voucher.code}_${mac.lowercase().replace(':', '_')}"
-                val legacyCounterKey = "last_$identity"
-                val counterKey = "${legacyCounterKey}_$counterSource"
-                val sourceMarkerKey = "source_$identity"
-                val previousSource = usagePreferences.getString(sourceMarkerKey, null)
-                val previousBytes = when {
-                    previousSource == counterSource -> usagePreferences.getLong(counterKey, -1L)
-                    previousSource == null && counterSource == "iptables" ->
-                        usagePreferences.getLong(legacyCounterKey, -1L)
-                    else -> -1L
+                val initializedKey = "counter_v2_initialized_$identity"
+                val wifiLastKey = "last_${identity}_wifi"
+                val iptablesLastKey = "last_${identity}_iptables"
+                val wifiTotalKey = "total_${identity}_wifi"
+                val iptablesTotalKey = "total_${identity}_iptables"
+                val wasInitialized = usagePreferences.getBoolean(initializedKey, false)
+                val usageEditor = usagePreferences.edit()
+                var addedBytes = 0L
+                var reconciledUsage = voucher.bytesUsedSoFar
+
+                if (!wasInitialized) {
+                    // Establish both baselines together. Wi-Fi counters may include traffic
+                    // from before voucher login; existing voucher usage is retained as base.
+                    if (wifiCounterBytes != null) usageEditor.putLong(wifiLastKey, wifiCounterBytes)
+                    if (iptablesCounterBytes != null) usageEditor.putLong(iptablesLastKey, iptablesCounterBytes)
+                    usageEditor
+                        .putLong(wifiTotalKey, voucher.bytesUsedSoFar)
+                        .putLong(iptablesTotalKey, voucher.bytesUsedSoFar)
+                        .putBoolean(initializedKey, true)
+                } else {
+                    var wifiTotal = usagePreferences.getLong(wifiTotalKey, voucher.bytesUsedSoFar)
+                    var iptablesTotal = usagePreferences.getLong(iptablesTotalKey, voucher.bytesUsedSoFar)
+
+                    if (wifiCounterBytes != null) {
+                        val previous = usagePreferences.getLong(wifiLastKey, -1L)
+                        val delta = UsageCounterMath.delta(previous, wifiCounterBytes)
+                        wifiTotal = UsageCounterMath.saturatingAdd(wifiTotal, delta)
+                        usageEditor.putLong(wifiLastKey, wifiCounterBytes)
+                    }
+                    if (iptablesCounterBytes != null) {
+                        val previous = usagePreferences.getLong(iptablesLastKey, -1L)
+                        val delta = UsageCounterMath.delta(previous, iptablesCounterBytes)
+                        iptablesTotal = UsageCounterMath.saturatingAdd(iptablesTotal, delta)
+                        usageEditor.putLong(iptablesLastKey, iptablesCounterBytes)
+                    }
+
+                    // The sources overlap, so use the higher cumulative estimate, never their sum.
+                    reconciledUsage = UsageCounterMath.reconciledTotal(
+                        voucher.bytesUsedSoFar,
+                        wifiTotal,
+                        iptablesTotal
+                    )
+                    addedBytes = reconciledUsage - voucher.bytesUsedSoFar
+                    usageEditor
+                        .putLong(wifiTotalKey, wifiTotal)
+                        .putLong(iptablesTotalKey, iptablesTotal)
                 }
-                val baselineOnly = (previousSource == null && counterSource == "wifi") ||
-                    (previousSource != null && previousSource != counterSource)
-                val addedBytes = when {
-                    previousBytes < 0L -> if (baselineOnly) 0L else counterBytes
-                    counterBytes >= previousBytes -> counterBytes - previousBytes
-                    else -> counterBytes // The station or firewall counters were reset.
+                usageEditor.apply()
+
+                val lastDiagnosticAt = lastCounterDiagnosticAt[identity] ?: 0L
+                if (nowElapsed - lastDiagnosticAt >= COUNTER_DIAGNOSTIC_INTERVAL_MS) {
+                    Log.i(
+                        "BandwidthTracker",
+                        "counterCheck voucher=${voucher.code} mac=$mac " +
+                            "wifi=${wifiCounterBytes ?: "unavailable"} " +
+                            "iptables=${iptablesCounterBytes ?: "not-sampled"} " +
+                            "used=${maxOf(voucher.bytesUsedSoFar, reconciledUsage)} added=$addedBytes"
+                    )
+                    lastCounterDiagnosticAt[identity] = nowElapsed
                 }
-                usagePreferences.edit()
-                    .putLong(counterKey, counterBytes)
-                    .putString(sourceMarkerKey, counterSource)
-                    .apply()
 
                 if (addedBytes > 0L) {
-                    val nextUsage = if (Long.MAX_VALUE - voucher.bytesUsedSoFar < addedBytes) {
-                        Long.MAX_VALUE
-                    } else {
-                        voucher.bytesUsedSoFar + addedBytes
-                    }
                     val updatedVoucher = voucher.copy(
-                        bytesUsedSoFar = nextUsage
+                        bytesUsedSoFar = reconciledUsage
                     )
                     voucherDao.updateVoucher(updatedVoucher)
                     voucher = updatedVoucher
@@ -289,6 +364,10 @@ class BandwidthTrackerService : Service() {
     override fun onDestroy() {
         trackingJob?.cancel()
         serviceScope.cancel()
+        trackingWakeLock?.let { wakeLock ->
+            if (wakeLock.isHeld) wakeLock.release()
+        }
+        trackingWakeLock = null
         super.onDestroy()
     }
 
@@ -296,5 +375,9 @@ class BandwidthTrackerService : Service() {
         const val BLOCKED_ENFORCEMENT_INTERVAL_MS = 5_000L
         const val AP_INTERFACE_REFRESH_INTERVAL_MS = 5_000L
         const val SOURCE_USAGE_SAMPLE_INTERVAL_MS = 5_000L
+        const val IPTABLES_VERIFICATION_INTERVAL_MS = 2_000L
+        const val COUNTER_DIAGNOSTIC_INTERVAL_MS = 30_000L
+        const val WAKE_LOCK_TIMEOUT_MS = 10 * 60 * 1_000L
+        const val WAKE_LOCK_RENEW_INTERVAL_MS = 5 * 60 * 1_000L
     }
 }
