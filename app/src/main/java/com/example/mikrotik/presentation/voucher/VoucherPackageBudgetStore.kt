@@ -20,8 +20,19 @@ internal class VoucherPackageBudgetStore(context: Context) {
 
     fun capacityBytes(): Long = preferences.getLong(KEY_CAPACITY_BYTES, 0L).coerceAtLeast(0L)
 
-    fun saveCapacityBytes(bytes: Long) {
-        preferences.edit().putLong(KEY_CAPACITY_BYTES, bytes.coerceAtLeast(0L)).apply()
+    fun capacityUnit(): VoucherDataUnit = preferences.getString(KEY_CAPACITY_UNIT, null)
+        ?.let { saved -> VoucherDataUnit.entries.firstOrNull { it.name == saved } }
+        ?: VoucherDataUnit.GB
+
+    fun saveCapacityBytes(bytes: Long, unit: VoucherDataUnit) {
+        preferences.edit()
+            .putLong(KEY_CAPACITY_BYTES, bytes.coerceAtLeast(0L))
+            .putString(KEY_CAPACITY_UNIT, unit.name)
+            .apply()
+    }
+
+    fun saveCapacityUnit(unit: VoucherDataUnit) {
+        preferences.edit().putString(KEY_CAPACITY_UNIT, unit.name).apply()
     }
 
     /** Call before deleting the voucher row; rows still present are excluded from this ledger. */
@@ -71,6 +82,7 @@ internal class VoucherPackageBudgetStore(context: Context) {
     private companion object {
         const val PREFERENCES_NAME = "voucher_package_budget_v1"
         const val KEY_CAPACITY_BYTES = "capacity_bytes"
+        const val KEY_CAPACITY_UNIT = "capacity_unit"
         const val KEY_DELETED_USAGE = "deleted_voucher_usage"
     }
 }

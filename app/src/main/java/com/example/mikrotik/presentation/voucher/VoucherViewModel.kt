@@ -39,6 +39,8 @@ class VoucherViewModel @Inject constructor(
     private val packageBudgetStore = VoucherPackageBudgetStore(context)
     private val _packageCapacityBytes = MutableStateFlow(packageBudgetStore.capacityBytes())
     val packageCapacityBytes: StateFlow<Long> = _packageCapacityBytes.asStateFlow()
+    private val _packageCapacityUnit = MutableStateFlow(packageBudgetStore.capacityUnit())
+    val packageCapacityUnit: StateFlow<VoucherDataUnit> = _packageCapacityUnit.asStateFlow()
     private val createMutex = Mutex()
 
     val activeVoucherNames: StateFlow<Map<String, String>> = activeSessionDao.getActiveSessionsFlow()
@@ -96,26 +98,33 @@ class VoucherViewModel @Inject constructor(
         _creationSuccess.value = null
     }
 
-    fun updatePackageCapacity(amount: String) {
-        val bytes = VoucherSizeParser.toBytes(amount, VoucherDataUnit.GB) ?: return
-        packageBudgetStore.saveCapacityBytes(bytes)
+    fun updatePackageCapacity(amount: String, unit: VoucherDataUnit) {
+        val bytes = VoucherSizeParser.toBytes(amount, unit) ?: return
+        packageBudgetStore.saveCapacityBytes(bytes, unit)
         _packageCapacityBytes.value = bytes
+        _packageCapacityUnit.value = unit
+    }
+
+    fun updatePackageCapacityUnit(unit: VoucherDataUnit) {
+        packageBudgetStore.saveCapacityUnit(unit)
+        _packageCapacityUnit.value = unit
     }
 
     fun createVoucher(
         durationDays: Int,
         dataAmount: String,
         dataUnit: VoucherDataUnit,
-        packageCapacityAmount: String
+        packageCapacityAmount: String,
+        packageCapacityUnit: VoucherDataUnit
     ) {
         val dataBytes = VoucherSizeParser.toBytes(dataAmount, dataUnit)
-        val packageCapacity = VoucherSizeParser.toBytes(packageCapacityAmount, VoucherDataUnit.GB)
+        val packageCapacity = VoucherSizeParser.toBytes(packageCapacityAmount, packageCapacityUnit)
         if (durationDays <= 0) {
             _creationError.value = "أدخل عدداً صحيحاً من الأيام أكبر من صفر."
             return
         }
         if (packageCapacity == null) {
-            _creationError.value = "أدخل حجم الباقة الإجمالي بوحدة GB."
+            _creationError.value = "أدخل حجم الباقة الإجمالي واختر MB أو GB."
             return
         }
         if (dataBytes == null) {
@@ -133,8 +142,9 @@ class VoucherViewModel @Inject constructor(
                         existingVouchers,
                         System.currentTimeMillis()
                     )
-                    packageBudgetStore.saveCapacityBytes(packageCapacity)
+                    packageBudgetStore.saveCapacityBytes(packageCapacity, packageCapacityUnit)
                     _packageCapacityBytes.value = packageCapacity
+                    _packageCapacityUnit.value = packageCapacityUnit
                     if (packageCapacity < committedBytes) {
                         _creationError.value = "عذراً، باقتك غير كافية؛ البطاقات الحالية تجاوزت حجمها."
                         return@withLock

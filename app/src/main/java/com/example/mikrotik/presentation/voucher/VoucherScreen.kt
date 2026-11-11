@@ -74,12 +74,13 @@ fun VoucherScreen(
     var dataAmount by rememberSaveable { mutableStateOf("") }
     var selectedDataUnit by rememberSaveable { mutableStateOf(VoucherDataUnit.MB) }
     val savedPackageCapacityBytes by viewModel.packageCapacityBytes.collectAsState()
+    val packageCapacityUnit by viewModel.packageCapacityUnit.collectAsState()
     val packageBudget by viewModel.packageBudget.collectAsState()
     var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(savedPackageCapacityBytes, packageCapacityUnit) {
         if (packageCapacityAmount.isBlank() && savedPackageCapacityBytes > 0L) {
-            packageCapacityAmount = formatGigabytesInput(savedPackageCapacityBytes)
+            packageCapacityAmount = formatVoucherSizeInput(savedPackageCapacityBytes, packageCapacityUnit)
         }
     }
 
@@ -151,11 +152,45 @@ fun VoucherScreen(
                                 color = DeepGreenHeader
                             )
                         }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            VoucherDataUnit.entries.forEach { unit ->
+                                FilterChip(
+                                    selected = packageCapacityUnit == unit,
+                                    onClick = {
+                                        if (packageCapacityUnit != unit) {
+                                            val currentBytes = VoucherSizeParser.toBytes(
+                                                packageCapacityAmount,
+                                                packageCapacityUnit
+                                            ) ?: savedPackageCapacityBytes.takeIf { packageCapacityAmount.isBlank() }
+                                            val convertedAmount = currentBytes?.let {
+                                                formatVoucherSizeInput(it, unit)
+                                            }
+                                            if (convertedAmount != null) {
+                                                packageCapacityAmount = convertedAmount
+                                                viewModel.updatePackageCapacity(convertedAmount, unit)
+                                            } else {
+                                                viewModel.updatePackageCapacityUnit(unit)
+                                            }
+                                        }
+                                    },
+                                    label = { Text(unit.label) },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = AppPalette.MintStrong,
+                                        selectedLabelColor = DeepGreenHeader
+                                    )
+                                )
+                            }
+                        }
                         OutlinedTextField(
                             value = packageCapacityAmount,
                             onValueChange = { value ->
                                 packageCapacityAmount = value
-                                viewModel.updatePackageCapacity(value)
+                                viewModel.updatePackageCapacity(value, packageCapacityUnit)
                                 viewModel.clearCreationError()
                             },
                             label = { Text(appText("أدخل سعة الباقة", "Enter package capacity")) },
@@ -165,7 +200,7 @@ fun VoucherScreen(
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             trailingIcon = {
                                 Text(
-                                    text = "GB",
+                                    text = packageCapacityUnit.label,
                                     modifier = Modifier.padding(end = 8.dp),
                                     color = RichGreenButton,
                                     fontWeight = FontWeight.Bold
@@ -182,7 +217,7 @@ fun VoucherScreen(
                         )
                     }
 
-                    val enteredCapacityBytes = VoucherSizeParser.toBytes(packageCapacityAmount, VoucherDataUnit.GB)
+                    val enteredCapacityBytes = VoucherSizeParser.toBytes(packageCapacityAmount, packageCapacityUnit)
                     val previewCapacityBytes = enteredCapacityBytes ?: packageBudget.capacityBytes
                     val previewRemainingBytes = (previewCapacityBytes - packageBudget.committedBytes).coerceAtLeast(0L)
                     Text(
@@ -350,7 +385,13 @@ fun VoucherScreen(
                     Button(
                         onClick = {
                             val days = durationDays.toIntOrNull() ?: 0
-                            viewModel.createVoucher(days, dataAmount, selectedDataUnit, packageCapacityAmount)
+                            viewModel.createVoucher(
+                                days,
+                                dataAmount,
+                                selectedDataUnit,
+                                packageCapacityAmount,
+                                packageCapacityUnit
+                            )
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -760,8 +801,8 @@ private fun localizeVoucherError(message: String, deleting: Boolean): String = w
         "Sorry, your package does not have enough data for this voucher."
     )
     message.contains("حجم الباقة") -> appText(
-        "أدخل حجم الباقة الإجمالي بوحدة GB.",
-        "Enter the total package size in GB."
+        "أدخل حجم الباقة الإجمالي واختر MB أو GB.",
+        "Enter the total package size and choose MB or GB."
     )
     message.contains("السعة المستخدمة أو المحجوزة") -> appText(
         "حجم الباقة أقل من السعة المستخدمة أو المحجوزة حالياً.",
@@ -790,8 +831,8 @@ private fun formatVoucherDataLimit(bytes: Long): String {
     return "$amount $unit"
 }
 
-private fun formatGigabytesInput(bytes: Long): String = BigDecimal.valueOf(bytes)
-    .divide(BigDecimal.valueOf(1024L * 1024L * 1024L), 3, RoundingMode.HALF_UP)
+private fun formatVoucherSizeInput(bytes: Long, unit: VoucherDataUnit): String = BigDecimal.valueOf(bytes)
+    .divide(BigDecimal.valueOf(unit.bytesMultiplier), 12, RoundingMode.DOWN)
     .stripTrailingZeros()
     .toPlainString()
 
