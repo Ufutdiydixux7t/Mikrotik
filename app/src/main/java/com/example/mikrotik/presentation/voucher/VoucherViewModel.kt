@@ -15,11 +15,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -37,10 +34,6 @@ class VoucherViewModel @Inject constructor(
 
     private val deviceNamePreferences = context.getSharedPreferences("dashboard_device_names", Context.MODE_PRIVATE)
     private val packageBudgetStore = VoucherPackageBudgetStore(context)
-    private val _packageCapacityBytes = MutableStateFlow(packageBudgetStore.capacityBytes())
-    val packageCapacityBytes: StateFlow<Long> = _packageCapacityBytes.asStateFlow()
-    private val _packageCapacityUnit = MutableStateFlow(packageBudgetStore.capacityUnit())
-    val packageCapacityUnit: StateFlow<VoucherDataUnit> = _packageCapacityUnit.asStateFlow()
     private val createMutex = Mutex()
 
     val activeVoucherNames: StateFlow<Map<String, String>> = activeSessionDao.getActiveSessionsFlow()
@@ -63,27 +56,6 @@ class VoucherViewModel @Inject constructor(
     val vouchers: StateFlow<List<VoucherEntity>> = voucherDao.getAllVouchersFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val packageBudgetClock = flow {
-        while (true) {
-            emit(System.currentTimeMillis())
-            delay(PACKAGE_BUDGET_REFRESH_MS)
-        }
-    }
-    val packageBudget: StateFlow<VoucherPackageBudget> = combine(
-        vouchers,
-        _packageCapacityBytes,
-        packageBudgetClock
-    ) { currentVouchers, capacityBytes, now ->
-        packageBudgetStore.snapshot(currentVouchers, capacityBytes, now)
-    }.stateIn(
-        viewModelScope,
-        SharingStarted.WhileSubscribed(5000),
-        VoucherPackageBudget(
-            capacityBytes = _packageCapacityBytes.value,
-            committedBytes = packageBudgetStore.committedBytes(emptyList(), System.currentTimeMillis())
-        )
-    )
-
     private val _creationError = MutableStateFlow<String?>(null)
     val creationError: StateFlow<String?> = _creationError.asStateFlow()
 
@@ -98,16 +70,22 @@ class VoucherViewModel @Inject constructor(
         _creationSuccess.value = null
     }
 
-    fun updatePackageCapacity(amount: String, unit: VoucherDataUnit) {
+    fun packageCapacityBytes(packageType: String): Long =
+        packageBudgetStore.capacityBytes(packageType)
+
+    fun packageCapacityUnit(packageType: String): VoucherDataUnit =
+        packageBudgetStore.capacityUnit(packageType)
+
+    fun packageBudgetSnapshot(packageType: String, now: Long): VoucherPackageBudget =
+        packageBudgetStore.snapshot(vouchers.value, packageType, now)
+
+    fun updatePackageCapacity(packageType: String, amount: String, unit: VoucherDataUnit) {
         val bytes = VoucherSizeParser.toBytes(amount, unit) ?: return
-        packageBudgetStore.saveCapacityBytes(bytes, unit)
-        _packageCapacityBytes.value = bytes
-        _packageCapacityUnit.value = unit
+        packageBudgetStore.saveCapacityBytes(packageType, bytes, unit)
     }
 
-    fun updatePackageCapacityUnit(unit: VoucherDataUnit) {
-        packageBudgetStore.saveCapacityUnit(unit)
-        _packageCapacityUnit.value = unit
+    fun updatePackageCapacityUnit(packageType: String, unit: VoucherDataUnit) {
+        packageBudgetStore.saveCapacityUnit(packageType, unit)
     }
 
     fun createVoucher(
@@ -115,16 +93,22 @@ class VoucherViewModel @Inject constructor(
         dataAmount: String,
         dataUnit: VoucherDataUnit,
         packageCapacityAmount: String,
-        packageCapacityUnit: VoucherDataUnit
+        packageCapacityUnit: VoucherDataUnit,
+        packageType: String
     ) {
         val dataBytes = VoucherSizeParser.toBytes(dataAmount, dataUnit)
         val packageCapacity = VoucherSizeParser.toBytes(packageCapacityAmount, packageCapacityUnit)
+        val normalizedPackageType = VoucherPackageType.normalize(packageType)
         if (durationDays <= 0) {
             _creationError.value = "أدخل عدداً صحيحاً من الأيام أكبر من صفر."
             return
         }
         if (packageCapacity == null) {
             _creationError.value = "أدخل حجم الباقة الإجمالي واختر MB أو GB."
+            return
+        }
+        if (normalizedPackageType == null) {
+            _creationError.value = "أدخل معرف نوع باقة صحيحاً (حتى 12 حرفاً أو رقماً)."
             return
         }
         if (dataBytes == null) {
@@ -140,11 +124,14 @@ class VoucherViewModel @Inject constructor(
                     val existingVouchers = voucherDao.getAllVouchersSnapshot()
                     val committedBytes = packageBudgetStore.committedBytes(
                         existingVouchers,
+                        normalizedPackageType,
                         System.currentTimeMillis()
                     )
-                    packageBudgetStore.saveCapacityBytes(packageCapacity, packageCapacityUnit)
-                    _packageCapacityBytes.value = packageCapacity
-                    _packageCapacityUnit.value = packageCapacityUnit
+                    packageBudgetStore.saveCapacityBytes(
+                        normalizedPackageType,
+                        packageCapacity,
+                        packageCapacityUnit
+                    )
                     if (packageCapacity < committedBytes) {
                         _creationError.value = "عذراً، باقتك غير كافية؛ البطاقات الحالية تجاوزت حجمها."
                         return@withLock
@@ -163,7 +150,8 @@ class VoucherViewModel @Inject constructor(
                             code = code,
                             durationMinutes = durationMinutes,
                             dataLimitBytes = dataBytes,
-                            createdAt = System.currentTimeMillis()
+                            createdAt = System.currentTimeMillis(),
+                            packageType = normalizedPackageType
                         )
                         if (voucherDao.insertVoucherIfAbsent(voucher) != -1L) {
                             _creationSuccess.value = code
@@ -235,7 +223,6 @@ class VoucherViewModel @Inject constructor(
 
     private companion object {
         const val MAX_CODE_GENERATION_ATTEMPTS = 128
-        const val PACKAGE_BUDGET_REFRESH_MS = 30_000L
     }
 }
 

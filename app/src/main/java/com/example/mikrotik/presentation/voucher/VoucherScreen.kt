@@ -70,15 +70,20 @@ fun VoucherScreen(
 
     var selectedFilterTab by remember { mutableStateOf(VoucherFilterTab.UNUSED) }
     var durationDays by rememberSaveable { mutableStateOf("2") }
-    var packageCapacityAmount by rememberSaveable { mutableStateOf("") }
+    var packageType by rememberSaveable { mutableStateOf(VoucherPackageType.DEFAULT) }
+    var packageCapacityAmount by rememberSaveable(packageType) { mutableStateOf("") }
     var dataAmount by rememberSaveable { mutableStateOf("") }
     var selectedDataUnit by rememberSaveable { mutableStateOf(VoucherDataUnit.MB) }
-    val savedPackageCapacityBytes by viewModel.packageCapacityBytes.collectAsState()
-    val packageCapacityUnit by viewModel.packageCapacityUnit.collectAsState()
-    val packageBudget by viewModel.packageBudget.collectAsState()
+    var packageCapacityUnit by rememberSaveable(packageType) {
+        mutableStateOf(viewModel.packageCapacityUnit(packageType))
+    }
+    val savedPackageCapacityBytes = viewModel.packageCapacityBytes(packageType)
     var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val packageBudget = remember(packageType, vouchers, currentTime) {
+        viewModel.packageBudgetSnapshot(packageType, currentTime)
+    }
 
-    LaunchedEffect(savedPackageCapacityBytes, packageCapacityUnit) {
+    LaunchedEffect(packageType, savedPackageCapacityBytes, packageCapacityUnit) {
         if (packageCapacityAmount.isBlank() && savedPackageCapacityBytes > 0L) {
             packageCapacityAmount = formatVoucherSizeInput(savedPackageCapacityBytes, packageCapacityUnit)
         }
@@ -135,96 +140,141 @@ fun VoucherScreen(
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Total package size comes first and is persisted as the user edits it.
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = AppIcons.Inventory,
-                                contentDescription = appText("حجم الباقة الإجمالي", "Total package size"),
-                                tint = RichGreenButton,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
+                    // Each package type has an independent capacity and voucher budget.
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(0.8f),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
                             Text(
-                                text = appText("حجم الباقة الإجمالي", "Total package size"),
-                                fontSize = 16.sp,
+                                text = appText("نوع الباقة", "Package type"),
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = DeepGreenHeader
                             )
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            VoucherDataUnit.entries.forEach { unit ->
-                                FilterChip(
-                                    selected = packageCapacityUnit == unit,
-                                    onClick = {
-                                        if (packageCapacityUnit != unit) {
-                                            val currentBytes = VoucherSizeParser.toBytes(
-                                                packageCapacityAmount,
-                                                packageCapacityUnit
-                                            ) ?: savedPackageCapacityBytes.takeIf { packageCapacityAmount.isBlank() }
-                                            val convertedAmount = currentBytes?.let {
-                                                formatVoucherSizeInput(it, unit)
-                                            }
-                                            if (convertedAmount != null) {
-                                                packageCapacityAmount = convertedAmount
-                                                viewModel.updatePackageCapacity(convertedAmount, unit)
-                                            } else {
-                                                viewModel.updatePackageCapacityUnit(unit)
-                                            }
+                            OutlinedTextField(
+                                value = packageType,
+                                onValueChange = { value ->
+                                    if (value.length <= 12 && value.all {
+                                            it.isLetterOrDigit() || it == '_' || it == '-'
                                         }
-                                    },
-                                    label = { Text(unit.label) },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = AppPalette.MintStrong,
-                                        selectedLabelColor = DeepGreenHeader
+                                    ) {
+                                        packageType = value.uppercase(Locale.ROOT)
+                                    }
+                                    viewModel.clearCreationError()
+                                },
+                                label = { Text(appText("المعرف", "ID")) },
+                                placeholder = { Text("A") },
+                                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = RichGreenButton,
+                                    unfocusedBorderColor = WatermarkLineColor,
+                                    focusedContainerColor = AppPalette.Card,
+                                    unfocusedContainerColor = AppPalette.Card
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        Column(
+                            modifier = Modifier.weight(1.2f),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = appText("حجم الباقة الإجمالي", "Total package size"),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = DeepGreenHeader
+                            )
+                            OutlinedTextField(
+                                value = packageCapacityAmount,
+                                onValueChange = { value ->
+                                    packageCapacityAmount = value
+                                    viewModel.updatePackageCapacity(packageType, value, packageCapacityUnit)
+                                    viewModel.clearCreationError()
+                                },
+                                label = { Text(appText("الحجم", "Size")) },
+                                placeholder = { Text(appText("مثال: 11", "e.g. 11")) },
+                                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Start),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                trailingIcon = {
+                                    Text(
+                                        text = packageCapacityUnit.label,
+                                        modifier = Modifier.padding(end = 8.dp),
+                                        color = RichGreenButton,
+                                        fontWeight = FontWeight.Bold
                                     )
-                                )
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = RichGreenButton,
+                                    unfocusedBorderColor = WatermarkLineColor,
+                                    focusedContainerColor = AppPalette.Card,
+                                    unfocusedContainerColor = AppPalette.Card
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                VoucherDataUnit.entries.forEach { unit ->
+                                    FilterChip(
+                                        selected = packageCapacityUnit == unit,
+                                        onClick = {
+                                            if (packageCapacityUnit != unit) {
+                                                val currentBytes = VoucherSizeParser.toBytes(
+                                                    packageCapacityAmount,
+                                                    packageCapacityUnit
+                                                ) ?: savedPackageCapacityBytes.takeIf {
+                                                    packageCapacityAmount.isBlank()
+                                                }
+                                                val convertedAmount = currentBytes?.let {
+                                                    formatVoucherSizeInput(it, unit)
+                                                }
+                                                packageCapacityUnit = unit
+                                                if (convertedAmount != null) {
+                                                    packageCapacityAmount = convertedAmount
+                                                    viewModel.updatePackageCapacity(
+                                                        packageType,
+                                                        convertedAmount,
+                                                        unit
+                                                    )
+                                                } else {
+                                                    viewModel.updatePackageCapacityUnit(packageType, unit)
+                                                }
+                                            }
+                                        },
+                                        label = { Text(unit.label) },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = AppPalette.MintStrong,
+                                            selectedLabelColor = DeepGreenHeader
+                                        )
+                                    )
+                                }
                             }
                         }
-                        OutlinedTextField(
-                            value = packageCapacityAmount,
-                            onValueChange = { value ->
-                                packageCapacityAmount = value
-                                viewModel.updatePackageCapacity(value, packageCapacityUnit)
-                                viewModel.clearCreationError()
-                            },
-                            label = { Text(appText("أدخل سعة الباقة", "Enter package capacity")) },
-                            placeholder = { Text(appText("مثال: 5 أو 0.5", "e.g. 5 or 0.5")) },
-                            textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Start),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            trailingIcon = {
-                                Text(
-                                    text = packageCapacityUnit.label,
-                                    modifier = Modifier.padding(end = 8.dp),
-                                    color = RichGreenButton,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = RichGreenButton,
-                                unfocusedBorderColor = WatermarkLineColor,
-                                focusedContainerColor = AppPalette.Card,
-                                unfocusedContainerColor = AppPalette.Card
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
                     }
 
+                    val normalizedPackageType = VoucherPackageType.normalize(packageType)
                     val enteredCapacityBytes = VoucherSizeParser.toBytes(packageCapacityAmount, packageCapacityUnit)
                     val previewCapacityBytes = enteredCapacityBytes ?: packageBudget.capacityBytes
                     val previewRemainingBytes = (previewCapacityBytes - packageBudget.committedBytes).coerceAtLeast(0L)
                     Text(
                         text = if (previewCapacityBytes > 0L) {
                             appText(
-                                "المخصص للبطاقات: ${formatVoucherDataLimit(packageBudget.committedBytes)}  •  المتاح: ${formatVoucherDataLimit(previewRemainingBytes)}",
-                                "Reserved for vouchers: ${formatVoucherDataLimit(packageBudget.committedBytes)}  •  Available: ${formatVoucherDataLimit(previewRemainingBytes)}"
+                                "النوع $packageType — المخصص: ${formatVoucherDataLimit(packageBudget.committedBytes)}  •  المتاح: ${formatVoucherDataLimit(previewRemainingBytes)}",
+                                "Type $packageType — reserved: ${formatVoucherDataLimit(packageBudget.committedBytes)}  •  available: ${formatVoucherDataLimit(previewRemainingBytes)}"
                             )
                         } else {
                             appText("أدخل حجم الباقة لعرض المساحة المتاحة للبطاقات.", "Enter the package size to see data available for vouchers.")
@@ -232,6 +282,16 @@ fun VoucherScreen(
                         fontSize = 12.sp,
                         color = AppPalette.Muted
                     )
+                    if (normalizedPackageType != null) {
+                        Text(
+                            text = appText(
+                                "يُحسب رصيد النوع $normalizedPackageType فقط؛ البطاقات القديمة غير المصنفة لا تدخل في هذا الحساب.",
+                                "Only type $normalizedPackageType is counted here; older unclassified vouchers are excluded."
+                            ),
+                            fontSize = 11.sp,
+                            color = AppPalette.Muted
+                        )
+                    }
                     if (previewCapacityBytes > 0L && packageBudget.committedBytes > previewCapacityBytes) {
                         Text(
                             text = appText(
@@ -390,7 +450,8 @@ fun VoucherScreen(
                                 dataAmount,
                                 selectedDataUnit,
                                 packageCapacityAmount,
-                                packageCapacityUnit
+                                packageCapacityUnit,
+                                packageType
                             )
                         },
                         modifier = Modifier
@@ -510,7 +571,7 @@ fun VoucherScreen(
     }
 
     val dismissCreationAndReset = {
-        durationDays = ""
+        durationDays = "2"
         dataAmount = ""
         viewModel.dismissCreationSuccess()
     }
@@ -677,6 +738,24 @@ private fun VoucherItemCard(
                         fontWeight = FontWeight.Bold
                     )
                 }
+                val voucherTypeLabel = if (voucher.packageType == VoucherPackageType.LEGACY) {
+                    appText("قديم", "Legacy")
+                } else {
+                    voucher.packageType
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(AppPalette.Mint.copy(alpha = 0.65f))
+                        .padding(horizontal = 9.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = appText("نوع $voucherTypeLabel", "Type $voucherTypeLabel"),
+                        color = DeepGreenHeader,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
                 Spacer(modifier = Modifier.weight(1f))
                 IconButton(onClick = { onCopy(voucher.code) }) {
                     Icon(
@@ -799,6 +878,10 @@ private fun localizeVoucherError(message: String, deleting: Boolean): String = w
     message.contains("غير كافية") -> appText(
         "عذراً، باقتك غير كافية لإنشاء هذه البطاقة.",
         "Sorry, your package does not have enough data for this voucher."
+    )
+    message.contains("نوع باقة") -> appText(
+        "أدخل معرفاً صحيحاً لنوع الباقة: حتى 12 حرفاً أو رقماً.",
+        "Enter a valid package type ID with up to 12 letters or digits."
     )
     message.contains("حجم الباقة") -> appText(
         "أدخل حجم الباقة الإجمالي واختر MB أو GB.",
