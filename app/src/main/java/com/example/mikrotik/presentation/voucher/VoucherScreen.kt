@@ -70,9 +70,18 @@ fun VoucherScreen(
 
     var selectedFilterTab by remember { mutableStateOf(VoucherFilterTab.UNUSED) }
     var durationDays by rememberSaveable { mutableStateOf("") }
+    var packageCapacityAmount by rememberSaveable { mutableStateOf("") }
     var dataAmount by rememberSaveable { mutableStateOf("") }
     var selectedDataUnit by rememberSaveable { mutableStateOf(VoucherDataUnit.MB) }
+    val savedPackageCapacityBytes by viewModel.packageCapacityBytes.collectAsState()
+    val packageBudget by viewModel.packageBudget.collectAsState()
     var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    LaunchedEffect(Unit) {
+        if (packageCapacityAmount.isBlank() && savedPackageCapacityBytes > 0L) {
+            packageCapacityAmount = formatGigabytesInput(savedPackageCapacityBytes)
+        }
+    }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -125,64 +134,127 @@ fun VoucherScreen(
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Manually entered voucher duration in days.
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Start,
-                            verticalAlignment = Alignment.CenterVertically
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        // Voucher validity.
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFFE8F5E9)),
-                                contentAlignment = Alignment.Center
-                            ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     imageVector = AppIcons.Clock,
                                     contentDescription = appText("مدة الصلاحية", "Duration"),
                                     tint = RichGreenButton,
-                                    modifier = Modifier.size(14.dp)
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = appText("مدة الصلاحية", "Validity"),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = DeepGreenHeader
                                 )
                             }
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = appText("مدة الصلاحية بالأيام", "Validity (days)"),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = DeepGreenHeader
+                            OutlinedTextField(
+                                value = durationDays,
+                                onValueChange = { value ->
+                                    if (value.length <= 7 && value.all(Char::isDigit)) durationDays = value
+                                    viewModel.clearCreationError()
+                                },
+                                label = { Text(appText("بالأيام", "Days")) },
+                                placeholder = { Text(appText("مثال: 7", "e.g. 7")) },
+                                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Start),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                trailingIcon = {
+                                    Text(
+                                        text = appText("يوم", "days"),
+                                        modifier = Modifier.padding(end = 6.dp),
+                                        color = RichGreenButton,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = RichGreenButton,
+                                    unfocusedBorderColor = WatermarkLineColor,
+                                    focusedContainerColor = AppPalette.Card,
+                                    unfocusedContainerColor = AppPalette.Card
+                                ),
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
-                        OutlinedTextField(
-                            value = durationDays,
-                            onValueChange = { value ->
-                                if (value.length <= 7 && value.all(Char::isDigit)) durationDays = value
-                                viewModel.clearCreationError()
-                            },
-                            label = { Text(appText("أدخل عدد الأيام", "Enter number of days")) },
-                            placeholder = { Text(appText("مثال: 7", "Example: 7")) },
-                            textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Start),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            trailingIcon = {
-                                Text(
-                                    text = appText("يوم", "days"),
-                                    modifier = Modifier.padding(end = 8.dp),
-                                    color = RichGreenButton,
-                                    fontWeight = FontWeight.Bold
+
+                        // Total upstream capacity shared by all vouchers.
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = AppIcons.Inventory,
+                                    contentDescription = appText("سعة الباقة", "Package capacity"),
+                                    tint = RichGreenButton,
+                                    modifier = Modifier.size(18.dp)
                                 )
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = RichGreenButton,
-                                unfocusedBorderColor = WatermarkLineColor,
-                                focusedContainerColor = AppPalette.Card,
-                                unfocusedContainerColor = AppPalette.Card
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = appText("سعة الباقة", "Package size"),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = DeepGreenHeader
+                                )
+                            }
+                            OutlinedTextField(
+                                value = packageCapacityAmount,
+                                onValueChange = { value ->
+                                    if (value.length <= 12) packageCapacityAmount = value
+                                    viewModel.clearCreationError()
+                                },
+                                label = { Text(appText("الإجمالي", "Total")) },
+                                placeholder = { Text(appText("مثال: 5", "e.g. 5")) },
+                                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Start),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                trailingIcon = {
+                                    Text(
+                                        text = "GB",
+                                        modifier = Modifier.padding(end = 6.dp),
+                                        color = RichGreenButton,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = RichGreenButton,
+                                    unfocusedBorderColor = WatermarkLineColor,
+                                    focusedContainerColor = AppPalette.Card,
+                                    unfocusedContainerColor = AppPalette.Card
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
+
+                    val enteredCapacityBytes = VoucherSizeParser.toBytes(
+                        packageCapacityAmount,
+                        VoucherDataUnit.GB
+                    )
+                    val previewRemainingBytes = (
+                        (enteredCapacityBytes ?: packageBudget.capacityBytes) - packageBudget.committedBytes
+                    ).coerceAtLeast(0L)
+                    Text(
+                        text = appText(
+                            "المخصص للبطاقات: ${formatVoucherDataLimit(packageBudget.committedBytes)}  •  المتاح: ${formatVoucherDataLimit(previewRemainingBytes)}",
+                            "Reserved for vouchers: ${formatVoucherDataLimit(packageBudget.committedBytes)}  •  Available: ${formatVoucherDataLimit(previewRemainingBytes)}"
+                        ),
+                        fontSize = 12.sp,
+                        color = AppPalette.Muted
+                    )
 
                     // Custom data limit with an explicit unit.
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -282,7 +354,7 @@ fun VoucherScreen(
                     Button(
                         onClick = {
                             val days = durationDays.toIntOrNull() ?: 0
-                            viewModel.createVoucher(days, dataAmount, selectedDataUnit)
+                            viewModel.createVoucher(days, dataAmount, selectedDataUnit, packageCapacityAmount)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -687,6 +759,18 @@ private fun VoucherItemCard(
 
 @Composable
 private fun localizeVoucherError(message: String, deleting: Boolean): String = when {
+    message.contains("غير كافية") -> appText(
+        "عذراً، باقتك غير كافية لإنشاء هذه البطاقة.",
+        "Sorry, your package does not have enough data for this voucher."
+    )
+    message.contains("حجم الباقة") -> appText(
+        "أدخل حجم الباقة الإجمالي بوحدة GB.",
+        "Enter the total package size in GB."
+    )
+    message.contains("السعة المستخدمة أو المحجوزة") -> appText(
+        "حجم الباقة أقل من السعة المستخدمة أو المحجوزة حالياً.",
+        "Package size is below the data already used or reserved."
+    )
     message.contains("الأيام") -> appText(
         "أدخل عدداً صحيحاً من الأيام أكبر من صفر.",
         "Enter a whole number of days greater than zero."
@@ -709,6 +793,11 @@ private fun formatVoucherDataLimit(bytes: Long): String {
         .toPlainString()
     return "$amount $unit"
 }
+
+private fun formatGigabytesInput(bytes: Long): String = BigDecimal.valueOf(bytes)
+    .divide(BigDecimal.valueOf(1024L * 1024L * 1024L), 3, RoundingMode.HALF_UP)
+    .stripTrailingZeros()
+    .toPlainString()
 
 private fun VoucherEntity.expiryTime(): Long? =
     firstUsedAt?.let { it + durationMinutes * 60_000L }

@@ -14,6 +14,9 @@ interface VoucherDao {
     @Query("SELECT * FROM vouchers ORDER BY createdAt DESC")
     fun getAllVouchersFlow(): Flow<List<VoucherEntity>>
 
+    @Query("SELECT * FROM vouchers ORDER BY createdAt DESC")
+    suspend fun getAllVouchersSnapshot(): List<VoucherEntity>
+
     @Query("SELECT * FROM vouchers WHERE code = :code LIMIT 1")
     suspend fun getVoucherByCode(code: String): VoucherEntity?
 
