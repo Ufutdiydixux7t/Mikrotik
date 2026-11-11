@@ -96,6 +96,12 @@ class VoucherViewModel @Inject constructor(
         _creationSuccess.value = null
     }
 
+    fun updatePackageCapacity(amount: String) {
+        val bytes = VoucherSizeParser.toBytes(amount, VoucherDataUnit.GB) ?: return
+        packageBudgetStore.saveCapacityBytes(bytes)
+        _packageCapacityBytes.value = bytes
+    }
+
     fun createVoucher(
         durationDays: Int,
         dataAmount: String,
@@ -127,13 +133,13 @@ class VoucherViewModel @Inject constructor(
                         existingVouchers,
                         System.currentTimeMillis()
                     )
+                    packageBudgetStore.saveCapacityBytes(packageCapacity)
+                    _packageCapacityBytes.value = packageCapacity
                     if (packageCapacity < committedBytes) {
-                        _creationError.value = "حجم الباقة أقل من السعة المستخدمة أو المحجوزة حالياً."
+                        _creationError.value = "عذراً، باقتك غير كافية؛ البطاقات الحالية تجاوزت حجمها."
                         return@withLock
                     }
 
-                    packageBudgetStore.saveCapacityBytes(packageCapacity)
-                    _packageCapacityBytes.value = packageCapacity
                     val remainingBytes = packageCapacity - committedBytes
                     if (dataBytes > remainingBytes) {
                         _creationError.value = "عذراً، باقتك غير كافية. المتبقي ${formatBudgetBytes(remainingBytes)} فقط."

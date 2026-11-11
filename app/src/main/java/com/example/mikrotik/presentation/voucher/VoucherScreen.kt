@@ -69,7 +69,7 @@ fun VoucherScreen(
     val context = LocalContext.current
 
     var selectedFilterTab by remember { mutableStateOf(VoucherFilterTab.UNUSED) }
-    var durationDays by rememberSaveable { mutableStateOf("") }
+    var durationDays by rememberSaveable { mutableStateOf("2") }
     var packageCapacityAmount by rememberSaveable { mutableStateOf("") }
     var dataAmount by rememberSaveable { mutableStateOf("") }
     var selectedDataUnit by rememberSaveable { mutableStateOf(VoucherDataUnit.MB) }
@@ -121,9 +121,9 @@ fun VoucherScreen(
             ) {
             // Creation Card
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, WatermarkLineColor, RoundedCornerShape(16.dp)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, WatermarkLineColor, RoundedCornerShape(16.dp)),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -134,12 +134,134 @@ fun VoucherScreen(
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    // Total package size comes first and is persisted as the user edits it.
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = AppIcons.Inventory,
+                                contentDescription = appText("حجم الباقة الإجمالي", "Total package size"),
+                                tint = RichGreenButton,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = appText("حجم الباقة الإجمالي", "Total package size"),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = DeepGreenHeader
+                            )
+                        }
+                        OutlinedTextField(
+                            value = packageCapacityAmount,
+                            onValueChange = { value ->
+                                packageCapacityAmount = value
+                                viewModel.updatePackageCapacity(value)
+                                viewModel.clearCreationError()
+                            },
+                            label = { Text(appText("أدخل سعة الباقة", "Enter package capacity")) },
+                            placeholder = { Text(appText("مثال: 5 أو 0.5", "e.g. 5 or 0.5")) },
+                            textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Start),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            trailingIcon = {
+                                Text(
+                                    text = "GB",
+                                    modifier = Modifier.padding(end = 8.dp),
+                                    color = RichGreenButton,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = RichGreenButton,
+                                unfocusedBorderColor = WatermarkLineColor,
+                                focusedContainerColor = AppPalette.Card,
+                                unfocusedContainerColor = AppPalette.Card
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    val enteredCapacityBytes = VoucherSizeParser.toBytes(packageCapacityAmount, VoucherDataUnit.GB)
+                    val previewCapacityBytes = enteredCapacityBytes ?: packageBudget.capacityBytes
+                    val previewRemainingBytes = (previewCapacityBytes - packageBudget.committedBytes).coerceAtLeast(0L)
+                    Text(
+                        text = if (previewCapacityBytes > 0L) {
+                            appText(
+                                "المخصص للبطاقات: ${formatVoucherDataLimit(packageBudget.committedBytes)}  •  المتاح: ${formatVoucherDataLimit(previewRemainingBytes)}",
+                                "Reserved for vouchers: ${formatVoucherDataLimit(packageBudget.committedBytes)}  •  Available: ${formatVoucherDataLimit(previewRemainingBytes)}"
+                            )
+                        } else {
+                            appText("أدخل حجم الباقة لعرض المساحة المتاحة للبطاقات.", "Enter the package size to see data available for vouchers.")
+                        },
+                        fontSize = 12.sp,
+                        color = AppPalette.Muted
+                    )
+                    if (previewCapacityBytes > 0L && packageBudget.committedBytes > previewCapacityBytes) {
+                        Text(
+                            text = appText(
+                                "البطاقات الحالية تجاوزت سعة الباقة؛ يمكنك تعديل الرقم، لكن لن تُنشأ بطاقة جديدة حتى يصبح هناك رصيد متاح.",
+                                "Existing vouchers exceed this package size. You can change the value, but a new voucher requires available capacity."
+                            ),
+                            fontSize = 12.sp,
+                            color = Color(0xFFC62828)
+                        )
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.Top
                     ) {
-                        // Voucher validity.
+                        Column(
+                            modifier = Modifier.weight(1.1f),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = AppIcons.Inventory,
+                                    contentDescription = appText("حجم الاستهلاك", "Data limit"),
+                                    tint = RichGreenButton,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = appText("حجم الاستهلاك", "Data limit"),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = DeepGreenHeader
+                                )
+                            }
+                            OutlinedTextField(
+                                value = dataAmount,
+                                onValueChange = { value ->
+                                    if (value.length <= 20) dataAmount = value
+                                    viewModel.clearCreationError()
+                                },
+                                label = { Text(appText("الحجم", "Amount")) },
+                                placeholder = { Text(appText("مثال: 500", "e.g. 500")) },
+                                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Start),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                trailingIcon = {
+                                    Text(
+                                        text = selectedDataUnit.label,
+                                        modifier = Modifier.padding(end = 6.dp),
+                                        color = RichGreenButton,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = RichGreenButton,
+                                    unfocusedBorderColor = WatermarkLineColor,
+                                    focusedContainerColor = AppPalette.Card,
+                                    unfocusedContainerColor = AppPalette.Card
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
                         Column(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -153,7 +275,7 @@ fun VoucherScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = appText("مدة الصلاحية", "Validity"),
+                                    text = appText("مدة الأيام", "Validity days"),
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = DeepGreenHeader
@@ -166,7 +288,7 @@ fun VoucherScreen(
                                     viewModel.clearCreationError()
                                 },
                                 label = { Text(appText("بالأيام", "Days")) },
-                                placeholder = { Text(appText("مثال: 7", "e.g. 7")) },
+                                placeholder = { Text(appText("مثال: 2", "e.g. 2")) },
                                 textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Start),
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -188,165 +310,39 @@ fun VoucherScreen(
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
+                    }
 
-                        // Total upstream capacity shared by all vouchers.
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = AppIcons.Inventory,
-                                    contentDescription = appText("سعة الباقة", "Package capacity"),
-                                    tint = RichGreenButton,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = appText("سعة الباقة", "Package size"),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = DeepGreenHeader
-                                )
-                            }
-                            OutlinedTextField(
-                                value = packageCapacityAmount,
-                                onValueChange = { value ->
-                                    if (value.length <= 12) packageCapacityAmount = value
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        VoucherDataUnit.entries.forEach { unit ->
+                            FilterChip(
+                                selected = selectedDataUnit == unit,
+                                onClick = {
+                                    selectedDataUnit = unit
                                     viewModel.clearCreationError()
                                 },
-                                label = { Text(appText("الإجمالي", "Total")) },
-                                placeholder = { Text(appText("مثال: 5", "e.g. 5")) },
-                                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Start),
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                trailingIcon = {
+                                label = {
                                     Text(
-                                        text = "GB",
-                                        modifier = Modifier.padding(end = 6.dp),
-                                        color = RichGreenButton,
-                                        fontWeight = FontWeight.Bold
+                                        if (unit == VoucherDataUnit.MB) appText("ميغابايت (MB)", "Megabytes (MB)")
+                                        else appText("غيغابايت (GB)", "Gigabytes (GB)")
                                     )
                                 },
+                                modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(12.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = RichGreenButton,
-                                    unfocusedBorderColor = WatermarkLineColor,
-                                    focusedContainerColor = AppPalette.Card,
-                                    unfocusedContainerColor = AppPalette.Card
-                                ),
-                                modifier = Modifier.fillMaxWidth()
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = AppPalette.MintStrong,
+                                    selectedLabelColor = DeepGreenHeader
+                                )
                             )
                         }
                     }
-
-                    val enteredCapacityBytes = VoucherSizeParser.toBytes(
-                        packageCapacityAmount,
-                        VoucherDataUnit.GB
-                    )
-                    val previewRemainingBytes = (
-                        (enteredCapacityBytes ?: packageBudget.capacityBytes) - packageBudget.committedBytes
-                    ).coerceAtLeast(0L)
                     Text(
-                        text = appText(
-                            "المخصص للبطاقات: ${formatVoucherDataLimit(packageBudget.committedBytes)}  •  المتاح: ${formatVoucherDataLimit(previewRemainingBytes)}",
-                            "Reserved for vouchers: ${formatVoucherDataLimit(packageBudget.committedBytes)}  •  Available: ${formatVoucherDataLimit(previewRemainingBytes)}"
-                        ),
+                        text = appText("يمكن إدخال كسور مثل 1.5، ويُحسب 1 GB = 1024 MB.", "Decimal amounts are supported (e.g. 1.5); 1 GB = 1024 MB."),
                         fontSize = 12.sp,
                         color = AppPalette.Muted
                     )
-
-                    // Custom data limit with an explicit unit.
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Start,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFFE8F5E9)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = AppIcons.Inventory,
-                                    contentDescription = appText("حد استهلاك البطاقة", "Data limit"),
-                                    tint = RichGreenButton,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = appText("حد استهلاك البطاقة", "Data limit"),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = DeepGreenHeader
-                            )
-                        }
-
-                        OutlinedTextField(
-                            value = dataAmount,
-                            onValueChange = { value ->
-                                if (value.length <= 20) dataAmount = value
-                                viewModel.clearCreationError()
-                            },
-                            label = { Text(appText("أدخل الحجم", "Enter amount")) },
-                            placeholder = { Text(appText("مثال: 500 أو 1.5", "Example: 500 or 1.5")) },
-                            textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Start),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            trailingIcon = {
-                                Text(
-                                    text = selectedDataUnit.label,
-                                    modifier = Modifier.padding(end = 8.dp),
-                                    color = RichGreenButton,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = RichGreenButton,
-                                unfocusedBorderColor = WatermarkLineColor,
-                                focusedContainerColor = AppPalette.Card,
-                                unfocusedContainerColor = AppPalette.Card
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            VoucherDataUnit.entries.forEach { unit ->
-                                FilterChip(
-                                    selected = selectedDataUnit == unit,
-                                    onClick = {
-                                        selectedDataUnit = unit
-                                        viewModel.clearCreationError()
-                                    },
-                                    label = {
-                                        Text(
-                                            if (unit == VoucherDataUnit.MB) appText("ميغابايت (MB)", "Megabytes (MB)")
-                                            else appText("غيغابايت (GB)", "Gigabytes (GB)")
-                                        )
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = AppPalette.MintStrong,
-                                        selectedLabelColor = DeepGreenHeader
-                                    )
-                                )
-                            }
-                        }
-                        Text(
-                            text = appText("يمكن إدخال كسور مثل 1.5، ويُحسب 1 GB = 1024 MB.", "Decimal amounts are supported (e.g. 1.5); 1 GB = 1024 MB." ),
-                            fontSize = 12.sp,
-                            color = AppPalette.Muted
-                        )
-                    }
 
                     Spacer(modifier = Modifier.height(4.dp))
 
