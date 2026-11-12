@@ -7,11 +7,12 @@ import java.util.Locale
 internal object VoucherPackageType {
     const val DEFAULT = "A"
     const val LEGACY = "LEGACY"
+    const val NONE = "NONE"
     private val validType = Regex("[\\p{L}\\p{N}_-]{1,12}")
 
     fun normalize(value: String?): String? {
         val normalized = value?.trim()?.uppercase(Locale.ROOT) ?: return null
-        if (normalized == LEGACY) return null
+        if (normalized == LEGACY || normalized == NONE) return null
         return normalized.takeIf(validType::matches)
     }
 }
@@ -30,6 +31,22 @@ internal class VoucherPackageBudgetStore(context: Context) {
         PREFERENCES_NAME,
         Context.MODE_PRIVATE
     )
+
+    fun isBudgetEnabled(): Boolean = preferences.getBoolean(KEY_BUDGET_ENABLED, true)
+
+    fun setBudgetEnabled(enabled: Boolean) {
+        preferences.edit().putBoolean(KEY_BUDGET_ENABLED, enabled).apply()
+    }
+
+    fun selectedPackageType(): String = preferences.getString(KEY_SELECTED_TYPE, null)
+        ?.let(VoucherPackageType::normalize)
+        ?: VoucherPackageType.DEFAULT
+
+    fun saveSelectedPackageType(packageType: String): Boolean {
+        val type = VoucherPackageType.normalize(packageType) ?: return false
+        preferences.edit().putString(KEY_SELECTED_TYPE, type).apply()
+        return true
+    }
 
     fun capacityBytes(packageType: String): Long {
         val type = VoucherPackageType.normalize(packageType) ?: return 0L
@@ -60,6 +77,9 @@ internal class VoucherPackageBudgetStore(context: Context) {
 
     /** Call before deleting the voucher row; rows still present are excluded from this ledger. */
     fun recordVoucherDeletion(voucher: VoucherEntity): Boolean {
+        if (voucher.packageType == VoucherPackageType.LEGACY || voucher.packageType == VoucherPackageType.NONE) {
+            return true
+        }
         val type = VoucherPackageType.normalize(voucher.packageType) ?: VoucherPackageType.LEGACY
         val key = deletedUsageKey(type)
         val identity = voucherIdentity(voucher)
@@ -128,6 +148,8 @@ internal class VoucherPackageBudgetStore(context: Context) {
 
     private companion object {
         const val PREFERENCES_NAME = "voucher_package_budget_v1"
+        const val KEY_BUDGET_ENABLED = "package_budget_enabled"
+        const val KEY_SELECTED_TYPE = "selected_package_type"
         const val KEY_LEGACY_CAPACITY_BYTES = "capacity_bytes"
         const val KEY_LEGACY_CAPACITY_UNIT = "capacity_unit"
     }

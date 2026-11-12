@@ -70,6 +70,30 @@ class VoucherViewModel @Inject constructor(
         _creationSuccess.value = null
     }
 
+    fun isPackageBudgetEnabled(): Boolean = packageBudgetStore.isBudgetEnabled()
+
+    fun setPackageBudgetEnabled(enabled: Boolean) {
+        packageBudgetStore.setBudgetEnabled(enabled)
+    }
+
+    fun selectedPackageType(): String = packageBudgetStore.selectedPackageType()
+
+    fun savePackageSettings(
+        enabled: Boolean,
+        packageType: String,
+        capacityAmount: String,
+        capacityUnit: VoucherDataUnit
+    ): Boolean {
+        if (enabled) {
+            val normalizedType = VoucherPackageType.normalize(packageType) ?: return false
+            val capacityBytes = VoucherSizeParser.toBytes(capacityAmount, capacityUnit) ?: return false
+            packageBudgetStore.saveCapacityBytes(normalizedType, capacityBytes, capacityUnit)
+            packageBudgetStore.saveSelectedPackageType(normalizedType)
+        }
+        packageBudgetStore.setBudgetEnabled(enabled)
+        return true
+    }
+
     fun packageCapacityBytes(packageType: String): Long =
         packageBudgetStore.capacityBytes(packageType)
 
@@ -92,23 +116,30 @@ class VoucherViewModel @Inject constructor(
         durationDays: Int,
         dataAmount: String,
         dataUnit: VoucherDataUnit,
-        packageCapacityAmount: String,
-        packageCapacityUnit: VoucherDataUnit,
+        packageBudgetEnabled: Boolean,
         packageType: String
     ) {
         val dataBytes = VoucherSizeParser.toBytes(dataAmount, dataUnit)
-        val packageCapacity = VoucherSizeParser.toBytes(packageCapacityAmount, packageCapacityUnit)
-        val normalizedPackageType = VoucherPackageType.normalize(packageType)
+        val normalizedPackageType = if (packageBudgetEnabled) {
+            VoucherPackageType.normalize(packageType)
+        } else {
+            VoucherPackageType.NONE
+        }
+        val packageCapacity = if (packageBudgetEnabled && normalizedPackageType != null) {
+            packageBudgetStore.capacityBytes(normalizedPackageType)
+        } else {
+            0L
+        }
         if (durationDays <= 0) {
             _creationError.value = "أدخل عدداً صحيحاً من الأيام أكبر من صفر."
             return
         }
-        if (packageCapacity == null) {
-            _creationError.value = "أدخل حجم الباقة الإجمالي واختر MB أو GB."
+        if (packageBudgetEnabled && normalizedPackageType == null) {
+            _creationError.value = "أدخل معرف نوع باقة صحيحاً (حتى 12 حرفاً أو رقماً)."
             return
         }
-        if (normalizedPackageType == null) {
-            _creationError.value = "أدخل معرف نوع باقة صحيحاً (حتى 12 حرفاً أو رقماً)."
+        if (packageBudgetEnabled && packageCapacity <= 0L) {
+            _creationError.value = "أدخل حجم الباقة الإجمالي من شاشة إعداد حجم الباقة."
             return
         }
         if (dataBytes == null) {
@@ -121,26 +152,23 @@ class VoucherViewModel @Inject constructor(
         viewModelScope.launch {
             createMutex.withLock {
                 try {
-                    val existingVouchers = voucherDao.getAllVouchersSnapshot()
-                    val committedBytes = packageBudgetStore.committedBytes(
-                        existingVouchers,
-                        normalizedPackageType,
-                        System.currentTimeMillis()
-                    )
-                    packageBudgetStore.saveCapacityBytes(
-                        normalizedPackageType,
-                        packageCapacity,
-                        packageCapacityUnit
-                    )
-                    if (packageCapacity < committedBytes) {
-                        _creationError.value = "عذراً، باقتك غير كافية؛ البطاقات الحالية تجاوزت حجمها."
-                        return@withLock
-                    }
+                    if (packageBudgetEnabled && normalizedPackageType != null) {
+                        val existingVouchers = voucherDao.getAllVouchersSnapshot()
+                        val committedBytes = packageBudgetStore.committedBytes(
+                            existingVouchers,
+                            normalizedPackageType,
+                            System.currentTimeMillis()
+                        )
+                        if (packageCapacity < committedBytes) {
+                            _creationError.value = "عذراً، باقتك غير كافية؛ البطاقات الحالية تجاوزت حجمها."
+                            return@withLock
+                        }
 
-                    val remainingBytes = packageCapacity - committedBytes
-                    if (dataBytes > remainingBytes) {
-                        _creationError.value = "عذراً، باقتك غير كافية. المتبقي ${formatBudgetBytes(remainingBytes)} فقط."
-                        return@withLock
+                        val remainingBytes = packageCapacity - committedBytes
+                        if (dataBytes > remainingBytes) {
+                            _creationError.value = "عذراً، باقتك غير كافية. المتبقي ${formatBudgetBytes(remainingBytes)} فقط."
+                            return@withLock
+                        }
                     }
 
                     val durationMinutes = durationDays * 24 * 60L
@@ -151,7 +179,7 @@ class VoucherViewModel @Inject constructor(
                             durationMinutes = durationMinutes,
                             dataLimitBytes = dataBytes,
                             createdAt = System.currentTimeMillis(),
-                            packageType = normalizedPackageType
+                            packageType = normalizedPackageType ?: VoucherPackageType.NONE
                         )
                         if (voucherDao.insertVoucherIfAbsent(voucher) != -1L) {
                             _creationSuccess.value = code
