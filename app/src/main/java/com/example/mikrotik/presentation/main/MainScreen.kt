@@ -151,6 +151,7 @@ fun MainScreen(
                     BottomTab.SETTINGS -> {
                         DiagnosticsScreen(
                             viewModel = diagnosticsViewModel,
+                            voucherViewModel = voucherViewModel,
                             isDarkModeEnabled = isDarkModeEnabled,
                             onDarkModeToggle = onDarkModeToggle,
                             language = language,

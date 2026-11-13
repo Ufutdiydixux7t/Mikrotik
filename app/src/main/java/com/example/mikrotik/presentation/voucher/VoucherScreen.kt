@@ -140,13 +140,13 @@ fun VoucherScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
             // Creation Card
-            Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, WatermarkLineColor, RoundedCornerShape(16.dp)),
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                color = SeamlessCardBg,
+                border = BorderStroke(1.dp, WatermarkLineColor),
+                shadowElevation = 0.dp,
+                tonalElevation = 0.dp
             ) {
                 Column(
                     modifier = Modifier
@@ -154,14 +154,14 @@ fun VoucherScreen(
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showPackageSettings = true },
+                    Surface(
+                        onClick = { showPackageSettings = true },
+                        modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(containerColor = AppPalette.Mint),
+                        color = if (AppPalette.isDarkMode) AppPalette.Card else Color.White,
                         border = BorderStroke(1.dp, WatermarkLineColor),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                        shadowElevation = 0.dp,
+                        tonalElevation = 0.dp
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(14.dp),
@@ -359,7 +359,13 @@ fun VoucherScreen(
                             .fillMaxWidth()
                             .height(52.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = RichGreenButton)
+                        colors = ButtonDefaults.buttonColors(containerColor = RichGreenButton),
+                        elevation = ButtonDefaults.buttonElevation(
+                            defaultElevation = 0.dp,
+                            pressedElevation = 0.dp,
+                            focusedElevation = 0.dp,
+                            hoveredElevation = 0.dp
+                        )
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -734,25 +740,27 @@ private fun VoucherItemCard(
                 Text(text = appText("السعة: $dataText", "Data: $dataText"), fontSize = 13.sp, color = DeepGreenHeader)
                 Text(text = appText("الصلاحية: $daysText", "Duration: $daysText"), fontSize = 13.sp, color = DeepGreenHeader)
             }
-            Text(
-                text = when {
-                    expiryDateStr == null -> appText("تبدأ الصلاحية عند أول استخدام", "Validity starts on first use")
-                    statusTitle == appText("بطاقات منتهية", "Expired vouchers") -> appText("انتهت الصلاحية: $expiryDateStr", "Expired: $expiryDateStr")
-                    else -> appText("تنتهي الصلاحية: $expiryDateStr", "Expires: $expiryDateStr")
-                },
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                fontSize = 12.sp,
-                color = AppPalette.Muted,
-                textAlign = TextAlign.Start
-            )
-            VoucherPackageType.normalize(voucher.packageType)?.let { type ->
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = appText("الفئة: $type", "Category: $type"),
-                    modifier = Modifier.fillMaxWidth(),
+                    text = when {
+                        expiryDateStr == null -> appText("تبدأ الصلاحية عند أول استخدام", "Validity starts on first use")
+                        statusTitle == appText("بطاقات منتهية", "Expired vouchers") -> appText("انتهت الصلاحية: $expiryDateStr", "Expired: $expiryDateStr")
+                        else -> appText("تنتهي الصلاحية: $expiryDateStr", "Expires: $expiryDateStr")
+                    },
                     fontSize = 12.sp,
-                    color = AppPalette.Muted,
-                    textAlign = TextAlign.Start
+                    color = AppPalette.Muted
                 )
+                VoucherPackageType.normalize(voucher.packageType)?.let { type ->
+                    Text(
+                        text = appText("الفئة: $type", "Category: $type"),
+                        fontSize = 12.sp,
+                        color = AppPalette.Muted
+                    )
+                }
             }
         }
     }

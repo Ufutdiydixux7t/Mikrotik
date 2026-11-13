@@ -270,6 +270,11 @@ fun VoucherPackageSettingsScreen(
                         )
                     }
 
+                    val invalidInputErrorMessage = appText(
+                        "أدخل فئة صحيحة وحجم باقة أكبر من صفر، أو أوقف حد الباقة.",
+                        "Enter a valid category and package size greater than zero, or disable the package limit."
+                    )
+
                     Button(
                         onClick = {
                             val saved = onSave(enabled, packageType, capacityAmount, capacityUnit)
@@ -277,15 +282,18 @@ fun VoucherPackageSettingsScreen(
                                 errorText = null
                                 onBack()
                             } else {
-                                errorText = appText(
-                                    "أدخل فئة صحيحة وحجم باقة أكبر من صفر، أو أوقف حد الباقة.",
-                                    "Enter a valid category and package size greater than zero, or disable the package limit."
-                                )
+                                errorText = invalidInputErrorMessage
                             }
                         },
                         modifier = Modifier.fillMaxWidth().height(52.dp),
                         shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppPalette.Teal)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppPalette.Teal),
+                        elevation = ButtonDefaults.buttonElevation(
+                            defaultElevation = 0.dp,
+                            pressedElevation = 0.dp,
+                            focusedElevation = 0.dp,
+                            hoveredElevation = 0.dp
+                        )
                     ) {
                         Text(
                             text = appText("حفظ والعودة", "Save and return"),

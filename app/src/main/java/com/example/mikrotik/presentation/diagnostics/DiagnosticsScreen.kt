@@ -14,6 +14,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,6 +37,11 @@ import com.example.mikrotik.presentation.ui.localization.AppLanguage
 import com.example.mikrotik.presentation.ui.localization.LocalAppLanguage
 import com.example.mikrotik.presentation.ui.localization.appText
 import com.example.mikrotik.presentation.ui.theme.AppIcons
+import com.example.mikrotik.presentation.voucher.VoucherPackageSettingsScreen
+import com.example.mikrotik.presentation.voucher.VoucherPackageType
+import com.example.mikrotik.presentation.voucher.VoucherViewModel
+import com.example.mikrotik.presentation.voucher.formatVoucherDataLimit
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.example.mikrotik.ui.theme.AppPalette
 
 private val DeepGreenHeader get() = AppPalette.TextNavy
@@ -62,11 +69,13 @@ sealed class SettingsDestination {
     object Privacy : SettingsDestination()
     object Language : SettingsDestination()
     object AppLock : SettingsDestination()
+    object PackageCapacity : SettingsDestination()
 }
 
 @Composable
 fun DiagnosticsScreen(
     viewModel: DiagnosticsViewModel,
+    voucherViewModel: VoucherViewModel,
     isDarkModeEnabled: Boolean,
     onDarkModeToggle: (Boolean) -> Unit,
     language: AppLanguage,
@@ -80,31 +89,35 @@ fun DiagnosticsScreen(
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
-        AppTopBar(
-            title = when (currentDestination) {
-                SettingsDestination.MainSettings -> appText("الإعدادات", "Settings")
-                SettingsDestination.SystemInfo -> appText("تشخيصات الروت والنظام", "Root & System Diagnostics")
-                SettingsDestination.Measurement -> appText("القياس", "Usage measurement")
-                SettingsDestination.LoginPage -> appText("واجهة تسجيل الدخول", "Login portal")
-                SettingsDestination.AboutUs -> appText("نظرة عنا", "About")
-                SettingsDestination.Privacy -> appText("خصوصية الاستخدام", "Usage privacy")
-                SettingsDestination.Language -> appText("اللغة", "Language")
-                SettingsDestination.AppLock -> appText("قفل التطبيق", "App lock")
-            },
-            subtitle = "AL RABDI NET",
-            startIcon = AppIcons.SettingsGear
-        )
+        if (currentDestination != SettingsDestination.PackageCapacity) {
+            AppTopBar(
+                title = when (currentDestination) {
+                    SettingsDestination.MainSettings -> appText("الإعدادات", "Settings")
+                    SettingsDestination.SystemInfo -> appText("تشخيصات الروت والنظام", "Root & System Diagnostics")
+                    SettingsDestination.Measurement -> appText("القياس", "Usage measurement")
+                    SettingsDestination.LoginPage -> appText("واجهة تسجيل الدخول", "Login portal")
+                    SettingsDestination.AboutUs -> appText("نظرة عنا", "About")
+                    SettingsDestination.Privacy -> appText("خصوصية الاستخدام", "Usage privacy")
+                    SettingsDestination.Language -> appText("اللغة", "Language")
+                    SettingsDestination.AppLock -> appText("قفل التطبيق", "App lock")
+                    SettingsDestination.PackageCapacity -> appText("حجم الباقة", "Package capacity")
+                },
+                subtitle = "AL RABDI NET",
+                startIcon = AppIcons.SettingsGear
+            )
+        }
 
         // Content Area
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp)
+                .padding(if (currentDestination == SettingsDestination.PackageCapacity) 0.dp else 16.dp)
         ) {
             when (currentDestination) {
                 SettingsDestination.MainSettings -> {
                     MainSettingsList(
                         viewModel = viewModel,
+                        voucherViewModel = voucherViewModel,
                         appLockViewModel = appLockViewModel,
                         isDarkModeEnabled = isDarkModeEnabled,
                         onDarkModeToggle = onDarkModeToggle,
@@ -154,6 +167,29 @@ fun DiagnosticsScreen(
                         onBack = { currentDestination = SettingsDestination.MainSettings }
                     )
                 }
+                SettingsDestination.PackageCapacity -> {
+                    var packageBudgetEnabled by rememberSaveable { mutableStateOf(voucherViewModel.isPackageBudgetEnabled()) }
+                    var packageType by rememberSaveable { mutableStateOf(voucherViewModel.selectedPackageType()) }
+                    val vouchers by voucherViewModel.vouchers.collectAsState()
+
+                    VoucherPackageSettingsScreen(
+                        initialEnabled = packageBudgetEnabled,
+                        initialPackageType = packageType,
+                        vouchers = vouchers,
+                        capacityForType = voucherViewModel::packageCapacityBytes,
+                        unitForType = voucherViewModel::packageCapacityUnit,
+                        budgetForType = voucherViewModel::packageBudgetSnapshot,
+                        onBack = { currentDestination = SettingsDestination.MainSettings },
+                        onSave = { enabled, type, amount, unit ->
+                            val saved = voucherViewModel.savePackageSettings(enabled, type, amount, unit)
+                            if (saved) {
+                                packageBudgetEnabled = enabled
+                                if (enabled) packageType = VoucherPackageType.normalize(type) ?: packageType
+                            }
+                            saved
+                        }
+                    )
+                }
             }
         }
     }
@@ -162,6 +198,7 @@ fun DiagnosticsScreen(
 @Composable
 fun MainSettingsList(
     viewModel: DiagnosticsViewModel,
+    voucherViewModel: VoucherViewModel,
     appLockViewModel: AppLockViewModel,
     isDarkModeEnabled: Boolean,
     onDarkModeToggle: (Boolean) -> Unit,
@@ -318,6 +355,33 @@ fun MainSettingsList(
                         "Name: ${portalAppearance.name} • Theme: $themeColorName"
                     ),
                     onClick = { onNavigate(SettingsDestination.LoginPage) }
+                )
+
+                HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
+
+                // Package Capacity
+                val packageBudgetEnabled = voucherViewModel.isPackageBudgetEnabled()
+                val packageType = voucherViewModel.selectedPackageType()
+                val savedCapacityBytes = voucherViewModel.packageCapacityBytes(packageType)
+
+                val packageSubtitle = if (!packageBudgetEnabled) {
+                    appText("متوقف — تُنشأ البطاقات بلا فئة", "Off — vouchers have no category")
+                } else if (savedCapacityBytes > 0L) {
+                    appText(
+                        "الفئة $packageType • السعة: ${formatVoucherDataLimit(savedCapacityBytes)}",
+                        "Category $packageType • Capacity: ${formatVoucherDataLimit(savedCapacityBytes)}"
+                    )
+                } else {
+                    appText("مفعّل — اضغط لتحديد الفئة والسعة", "On — tap to set category and capacity")
+                }
+
+                SettingsItemRow(
+                    icon = AppIcons.Inventory,
+                    iconContainerColor = AppPalette.Mint,
+                    iconTintColor = RichGreenButton,
+                    title = appText("حجم الباقة", "Package capacity"),
+                    subtitle = packageSubtitle,
+                    onClick = { onNavigate(SettingsDestination.PackageCapacity) }
                 )
             }
         }
