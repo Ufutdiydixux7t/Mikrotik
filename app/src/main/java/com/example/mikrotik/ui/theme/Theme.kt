@@ -8,9 +8,11 @@ import androidx.compose.runtime.Composable
 @Composable
 fun MikrotikTheme(
     darkTheme: Boolean = false,
+    appColorTheme: AppColorTheme = AppColorTheme.DEFAULT,
     content: @Composable () -> Unit
 ) {
     AppPalette.isDarkMode = darkTheme
+    AppPalette.currentTheme = appColorTheme
 
     val colorScheme = if (darkTheme) {
         darkColorScheme(

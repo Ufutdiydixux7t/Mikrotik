@@ -43,6 +43,7 @@ import com.example.mikrotik.presentation.voucher.VoucherViewModel
 import com.example.mikrotik.presentation.voucher.formatVoucherDataLimit
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.example.mikrotik.ui.theme.AppPalette
+import com.example.mikrotik.ui.theme.AppColorTheme
 
 private val DeepGreenHeader get() = AppPalette.TextNavy
 private val RichGreenButton get() = AppPalette.Teal
@@ -68,6 +69,7 @@ sealed class SettingsDestination {
     object AboutUs : SettingsDestination()
     object Privacy : SettingsDestination()
     object Language : SettingsDestination()
+    object AppAppearance : SettingsDestination()
     object AppLock : SettingsDestination()
     object PackageCapacity : SettingsDestination()
 }
@@ -77,6 +79,8 @@ fun DiagnosticsScreen(
     viewModel: DiagnosticsViewModel,
     voucherViewModel: VoucherViewModel,
     isDarkModeEnabled: Boolean,
+    appColorTheme: AppColorTheme,
+    onAppColorThemeChange: (AppColorTheme) -> Unit,
     onDarkModeToggle: (Boolean) -> Unit,
     language: AppLanguage,
     onLanguageChange: (AppLanguage) -> Unit,
@@ -99,6 +103,7 @@ fun DiagnosticsScreen(
                     SettingsDestination.AboutUs -> appText("نظرة عنا", "About")
                     SettingsDestination.Privacy -> appText("خصوصية الاستخدام", "Usage privacy")
                     SettingsDestination.Language -> appText("اللغة", "Language")
+                    SettingsDestination.AppAppearance -> appText("ألوان التطبيق", "App colors")
                     SettingsDestination.AppLock -> appText("قفل التطبيق", "App lock")
                     SettingsDestination.PackageCapacity -> appText("حجم الباقة", "Package capacity")
                 },
@@ -120,6 +125,7 @@ fun DiagnosticsScreen(
                         voucherViewModel = voucherViewModel,
                         appLockViewModel = appLockViewModel,
                         isDarkModeEnabled = isDarkModeEnabled,
+                        appColorTheme = appColorTheme,
                         onDarkModeToggle = onDarkModeToggle,
                         language = language,
                         onNavigate = { currentDestination = it }
@@ -158,6 +164,13 @@ fun DiagnosticsScreen(
                     LanguageSettingsScreen(
                         language = language,
                         onLanguageChange = onLanguageChange,
+                        onBack = { currentDestination = SettingsDestination.MainSettings }
+                    )
+                }
+                SettingsDestination.AppAppearance -> {
+                    AppColorThemeSettingsScreen(
+                        selectedTheme = appColorTheme,
+                        onThemeSelected = onAppColorThemeChange,
                         onBack = { currentDestination = SettingsDestination.MainSettings }
                     )
                 }
@@ -201,6 +214,7 @@ fun MainSettingsList(
     voucherViewModel: VoucherViewModel,
     appLockViewModel: AppLockViewModel,
     isDarkModeEnabled: Boolean,
+    appColorTheme: AppColorTheme,
     onDarkModeToggle: (Boolean) -> Unit,
     language: AppLanguage,
     onNavigate: (SettingsDestination) -> Unit
@@ -407,6 +421,18 @@ fun MainSettingsList(
                     badgeText = language.code.uppercase(),
                     badgeColor = RichGreenButton,
                     onClick = { onNavigate(SettingsDestination.Language) }
+                )
+
+                HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
+
+                SettingsItemRow(
+                    icon = AppIcons.Palette,
+                    iconContainerColor = AppPalette.Mint,
+                    iconTintColor = RichGreenButton,
+                    title = appText("ألوان التطبيق", "App colors"),
+                    subtitle = appText(appColorTheme.arabicName, appColorTheme.englishName),
+                    badgeText = null,
+                    onClick = { onNavigate(SettingsDestination.AppAppearance) }
                 )
 
                 HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)

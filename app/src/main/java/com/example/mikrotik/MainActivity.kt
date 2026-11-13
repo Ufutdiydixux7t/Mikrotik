@@ -30,6 +30,7 @@ import com.example.mikrotik.presentation.voucher.VoucherViewModel
 import com.example.mikrotik.security.AppLockGateScreen
 import com.example.mikrotik.security.AppLockViewModel
 import com.example.mikrotik.ui.theme.MikrotikTheme
+import com.example.mikrotik.ui.theme.AppColorTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -91,6 +92,9 @@ class MainActivity : ComponentActivity() {
             val darkMode = remember {
                 mutableStateOf(preferences.getBoolean("dark_mode_enabled", false))
             }
+            val appColorTheme = remember {
+                mutableStateOf(AppColorTheme.fromCode(preferences.getString("app_color_theme", null)))
+            }
             val language = remember {
                 mutableStateOf(AppLanguage.fromCode(preferences.getString("ui_language", "ar")))
             }
@@ -108,7 +112,7 @@ class MainActivity : ComponentActivity() {
                     if (language.value == AppLanguage.ARABIC) LayoutDirection.Rtl else LayoutDirection.Ltr
                 )
             ) {
-                MikrotikTheme(darkTheme = darkMode.value) {
+                MikrotikTheme(darkTheme = darkMode.value, appColorTheme = appColorTheme.value) {
                     if (appLockConfig.enabled && appIsLocked) {
                         AppLockGateScreen(viewModel = appLockViewModel)
                     } else {
@@ -119,6 +123,11 @@ class MainActivity : ComponentActivity() {
                             dashboardViewModel = dashboardViewModel,
                             appLockViewModel = appLockViewModel,
                             isDarkModeEnabled = darkMode.value,
+                            appColorTheme = appColorTheme.value,
+                            onAppColorThemeChange = { selectedTheme ->
+                                appColorTheme.value = selectedTheme
+                                preferences.edit().putString("app_color_theme", selectedTheme.code).apply()
+                            },
                             onDarkModeToggle = { enabled ->
                                 darkMode.value = enabled
                                 preferences.edit().putBoolean("dark_mode_enabled", enabled).apply()

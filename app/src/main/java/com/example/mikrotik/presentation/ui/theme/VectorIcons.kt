@@ -338,6 +338,44 @@ object AppIcons {
             }
         }.build()
 
+    val Palette: ImageVector
+        get() = ImageVector.Builder(
+            name = "Palette",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(
+                stroke = SolidColor(Color(0xFF00796B)),
+                strokeLineWidth = 2f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round
+            ) {
+                moveTo(12f, 3f)
+                curveTo(6.9f, 3f, 3f, 6.8f, 3f, 11.5f)
+                curveTo(3f, 16.2f, 6.8f, 20f, 11.5f, 20f)
+                lineTo(13f, 20f)
+                curveTo(14.3f, 20f, 15f, 18.4f, 14.2f, 17.4f)
+                curveTo(13.5f, 16.5f, 14f, 15f, 15.2f, 15f)
+                lineTo(17f, 15f)
+                curveTo(19.2f, 15f, 21f, 13.2f, 21f, 11f)
+                curveTo(21f, 6.6f, 17f, 3f, 12f, 3f)
+                close()
+            }
+            path(fill = SolidColor(Color(0xFF00796B))) {
+                moveTo(8f, 10f)
+                arcTo(1f, 1f, 0f, true, true, 8.01f, 10f)
+                close()
+                moveTo(12f, 7.5f)
+                arcTo(1f, 1f, 0f, true, true, 12.01f, 7.5f)
+                close()
+                moveTo(16f, 10f)
+                arcTo(1f, 1f, 0f, true, true, 16.01f, 10f)
+                close()
+            }
+        }.build()
+
     val Moon: ImageVector
         get() = ImageVector.Builder(
             name = "Moon",
