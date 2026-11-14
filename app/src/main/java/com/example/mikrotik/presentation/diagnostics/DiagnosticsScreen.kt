@@ -3,8 +3,8 @@ package com.example.mikrotik.presentation.diagnostics
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
+import androidx.core.net.toUri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -47,7 +47,6 @@ import com.example.mikrotik.ui.theme.AppColorTheme
 
 private val DeepGreenHeader get() = AppPalette.TextNavy
 private val RichGreenButton get() = AppPalette.Teal
-private val PageBackground get() = AppPalette.Background
 private val SeamlessCardBg get() = AppPalette.Card
 private val WatermarkLineColor get() = AppPalette.Border
 
@@ -85,7 +84,7 @@ fun DiagnosticsScreen(
     language: AppLanguage,
     onLanguageChange: (AppLanguage) -> Unit,
     onUsageReset: () -> Unit,
-    appLockViewModel: AppLockViewModel
+    appLockViewModel: AppLockViewModel,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var currentDestination by remember { mutableStateOf<SettingsDestination>(SettingsDestination.MainSettings) }
@@ -127,9 +126,8 @@ fun DiagnosticsScreen(
                         isDarkModeEnabled = isDarkModeEnabled,
                         appColorTheme = appColorTheme,
                         onDarkModeToggle = onDarkModeToggle,
-                        language = language,
-                        onNavigate = { currentDestination = it }
-                    )
+                        language = language
+                    ) { currentDestination = it }
                 }
                 SettingsDestination.SystemInfo -> {
                     SystemInfoDetailScreen(
@@ -223,7 +221,7 @@ fun MainSettingsList(
     val portalAppearance by viewModel.portalAppearance.collectAsState()
     val appLockConfig by appLockViewModel.config.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
-    var showInternetBlockConfirmation by remember { mutableStateOf(false) }
+    var showInternetBlockConfirmation by remember { mutableStateOf(value = false) }
 
     Column(
         modifier = Modifier
@@ -640,9 +638,9 @@ fun SettingsItemRow(
                         }
                     }
                 }
-                if (subtitle != null) {
+                subtitle?.let { sub ->
                     Text(
-                        text = subtitle,
+                        text = sub,
                         fontSize = 11.sp,
                         lineHeight = 16.sp,
                         color = AppPalette.Muted
@@ -805,7 +803,7 @@ private fun PortalAppearanceSettingsScreen(
                     fontWeight = FontWeight.SemiBold,
                     color = DeepGreenHeader
                 )
-                PortalTheme.values().toList().chunked(2).forEach { themes ->
+                PortalTheme.entries.chunked(2).forEach { themes ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1054,7 +1052,7 @@ private fun ContactIconButton(
 
 private fun openContactTarget(context: Context, uri: String, unavailableMessage: String) {
     try {
-        val contactUri = Uri.parse(uri)
+        val contactUri = uri.toUri()
         val action = if (contactUri.scheme == "mailto") Intent.ACTION_SENDTO else Intent.ACTION_VIEW
         context.startActivity(Intent(action, contactUri))
     } catch (_: ActivityNotFoundException) {
