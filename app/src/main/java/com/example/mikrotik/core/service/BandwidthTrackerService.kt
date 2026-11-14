@@ -11,6 +11,7 @@ import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.example.mikrotik.core.hotspot.ClientDiscoveryManager
 import com.example.mikrotik.core.hotspot.HotspotController
 import com.example.mikrotik.core.network.IptablesManager
 import com.example.mikrotik.core.network.UsageCounterMath
@@ -38,6 +39,7 @@ class BandwidthTrackerService : Service() {
     @Inject lateinit var blockedMacDao: BlockedMacDao
     @Inject lateinit var iptablesManager: IptablesManager
     @Inject lateinit var hotspotController: HotspotController
+    @Inject lateinit var clientDiscoveryManager: ClientDiscoveryManager
     @Inject lateinit var sessionTransitionLock: SessionTransitionLock
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -45,6 +47,7 @@ class BandwidthTrackerService : Service() {
     private var lastBlockedEnforcementAt = 0L
     private var cachedApInterface: String? = null
     private var lastApInterfaceLookupAt = 0L
+    private var lastSessionIpRefreshAt = 0L
     private var lastSourceTrafficSampleAt = 0L
     private var lastIptablesVerificationAt = 0L
     private var lastWakeLockRenewalAt = 0L
@@ -130,9 +133,14 @@ class BandwidthTrackerService : Service() {
     private suspend fun trackBandwidthAndEnforceQuotas() {
         sampleSourceTrafficIfDue()
         enforceBlockedDevicesIfDue()
-        val sessions = activeSessionDao.getActiveSessionsSnapshot()
+        var sessions = activeSessionDao.getActiveSessionsSnapshot()
             .distinctBy { it.macAddress.lowercase() }
         val apInterface = if (sessions.isNotEmpty()) getCachedApInterface() else null
+        if (apInterface != null) {
+            refreshActiveSessionIpAddresses(sessions, apInterface)
+            sessions = activeSessionDao.getActiveSessionsSnapshot()
+                .distinctBy { it.macAddress.lowercase() }
+        }
         val nowElapsed = SystemClock.elapsedRealtime()
         val verifyWithIptables = lastIptablesVerificationAt == 0L ||
             nowElapsed - lastIptablesVerificationAt >= IPTABLES_VERIFICATION_INTERVAL_MS
@@ -282,6 +290,39 @@ class BandwidthTrackerService : Service() {
         }
     }
 
+    /** Refresh the stored client IP by MAC; DHCP can change an IP while the voucher stays active. */
+    private suspend fun refreshActiveSessionIpAddresses(
+        sessions: List<com.example.mikrotik.data.db.entity.ActiveSessionEntity>,
+        interfaceName: String
+    ) {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastSessionIpRefreshAt < SESSION_IP_REFRESH_INTERVAL_MS) return
+        lastSessionIpRefreshAt = now
+
+        val currentIps = clientDiscoveryManager.findIpv4AddressesForMacs(
+            macAddresses = sessions.map { it.macAddress },
+            interfaceName = interfaceName
+        )
+        for (session in sessions) {
+            val currentIp = currentIps[session.macAddress.lowercase()] ?: continue
+            if (currentIp == session.ipAddress) continue
+
+            val updated = activeSessionDao.updateActiveSessionIpAddress(
+                macAddress = session.macAddress,
+                voucherCode = session.voucherCode,
+                connectedAt = session.connectedAt,
+                ipAddress = currentIp,
+                lastSeenAt = System.currentTimeMillis()
+            )
+            if (updated > 0) {
+                Log.i(
+                    "BandwidthTracker",
+                    "Refreshed client IP for ${session.macAddress}: ${session.ipAddress} -> $currentIp"
+                )
+            }
+        }
+    }
+
     private fun sampleSourceTrafficIfDue() {
         val now = SystemClock.elapsedRealtime()
         if (lastSourceTrafficSampleAt != 0L && now - lastSourceTrafficSampleAt < SOURCE_USAGE_SAMPLE_INTERVAL_MS) return
@@ -374,6 +415,7 @@ class BandwidthTrackerService : Service() {
     private companion object {
         const val BLOCKED_ENFORCEMENT_INTERVAL_MS = 5_000L
         const val AP_INTERFACE_REFRESH_INTERVAL_MS = 5_000L
+        const val SESSION_IP_REFRESH_INTERVAL_MS = 5_000L
         const val SOURCE_USAGE_SAMPLE_INTERVAL_MS = 5_000L
         const val IPTABLES_VERIFICATION_INTERVAL_MS = 2_000L
         const val COUNTER_DIAGNOSTIC_INTERVAL_MS = 30_000L

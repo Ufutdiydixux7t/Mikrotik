@@ -35,6 +35,22 @@ interface ActiveSessionDao {
     @Update
     suspend fun updateSession(session: ActiveSessionEntity)
 
+    @Query("""
+        UPDATE active_sessions
+        SET ipAddress = :ipAddress, lastSeenAt = :lastSeenAt
+        WHERE macAddress COLLATE NOCASE = :macAddress
+          AND voucherCode = :voucherCode
+          AND connectedAt = :connectedAt
+          AND isActive = 1
+    """)
+    suspend fun updateActiveSessionIpAddress(
+        macAddress: String,
+        voucherCode: String,
+        connectedAt: Long,
+        ipAddress: String,
+        lastSeenAt: Long
+    ): Int
+
     @Query("UPDATE active_sessions SET isActive = 0 WHERE macAddress COLLATE NOCASE = :macAddress")
     suspend fun deactivateSession(macAddress: String)
 

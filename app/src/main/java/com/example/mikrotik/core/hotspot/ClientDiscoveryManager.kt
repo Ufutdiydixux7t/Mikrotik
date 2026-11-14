@@ -16,6 +16,47 @@ class ClientDiscoveryManager @Inject constructor(
     private val stationMacRegex = Regex("(?i)[0-9a-f]{2}(?::[0-9a-f]{2}){5}")
     private val activeNeighborStates = setOf("REACHABLE", "DELAY", "PROBE")
 
+    /** Resolves current addresses in one root-shell round trip for all active voucher clients. */
+    suspend fun findIpv4AddressesForMacs(macAddresses: Collection<String>, interfaceName: String): Map<String, String> =
+        withContext(Dispatchers.IO) {
+            val macs = macAddresses.map { it.trim().lowercase() }.filter { macRegex.matches(it) }.distinct()
+            if (macs.isEmpty() || !interfaceNameRegex.matches(interfaceName)) return@withContext emptyMap()
+
+            val snapshot = rootShellManager.executeCommand(
+                "echo __MM_NEIGH__; ip neigh show dev $interfaceName 2>/dev/null; " +
+                    "echo __MM_ARP__; cat /proc/net/arp 2>/dev/null; " +
+                    "echo __MM_LEASES__; cat /data/misc/dhcp/dnsmasq.leases 2>/dev/null"
+            )
+            if (!snapshot.isSuccess) return@withContext emptyMap()
+
+            val neighborLines = mutableListOf<String>()
+            val arpLines = mutableListOf<String>()
+            val leaseLines = mutableListOf<String>()
+            var section = 0
+            snapshot.stdout.forEach { line ->
+                when (line.trim()) {
+                    "__MM_NEIGH__" -> section = 1
+                    "__MM_ARP__" -> section = 2
+                    "__MM_LEASES__" -> section = 3
+                    else -> when (section) {
+                        1 -> neighborLines += line
+                        2 -> arpLines += line
+                        3 -> leaseLines += line
+                    }
+                }
+            }
+
+            macs.mapNotNull { mac ->
+                ClientAddressResolver.findIpv4ForMac(
+                    macAddress = mac,
+                    interfaceName = interfaceName,
+                    neighborLines = neighborLines,
+                    arpLines = arpLines,
+                    dhcpLeaseLines = leaseLines
+                )?.let { mac to it }
+            }.toMap()
+        }
+
     /** Resolves a client from neighbor/ARP entries scoped to the actual hotspot interface. */
     suspend fun findMacAddressForIp(ipAddress: String, interfaceName: String): String? = withContext(Dispatchers.IO) {
         if (!isValidIpv4(ipAddress) || !interfaceNameRegex.matches(interfaceName)) return@withContext null
