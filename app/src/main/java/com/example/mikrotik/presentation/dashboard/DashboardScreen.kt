@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -508,19 +509,23 @@ private fun DeviceUsageCard(
         else -> RichGreenButton
     }
     val lastUpdate = usage?.lastSampleAtMillis?.let { formatSampleTimestamp(it, language) }
-    val lastUpdateLabel = lastUpdate?.let { appText("آخر تحديث: $it", "Last updated: $it") }
-        ?: appText("آخر تحديث: غير متاح", "Last updated: Not available")
     val sourceValue = when (usage?.sampleSource ?: UsageSampleSource.UNAVAILABLE) {
         UsageSampleSource.WIFI_STATION -> appText("محطة Wi-Fi", "Wi-Fi station")
         UsageSampleSource.IPTABLES -> "iptables"
         UsageSampleSource.BOTH -> appText("كلاهما", "Both")
         UsageSampleSource.UNAVAILABLE -> appText("غير متاح", "Unavailable")
     }
-    val sourceLabel = appText("مصدر القراءة: $sourceValue", "Reading source: $sourceValue")
 
     var showRenameDialog by remember(session.macAddress) { mutableStateOf(false) }
     var showBlockDialog by remember(session.macAddress) { mutableStateOf(false) }
+    var showDetails by remember(session.macAddress) { mutableStateOf(false) }
     var editedName by remember(session.macAddress) { mutableStateOf("") }
+    val usageLabel = when {
+        usage == null -> appText("جارٍ قياس الاستهلاك...", "Measuring usage…")
+        !usage.isMeasured -> appText("عداد الاستهلاك غير متاح", "Usage counter unavailable")
+        quotaBytes > 0L -> "${formatUsageBytes(usedBytes)} / ${formatUsageBytes(quotaBytes)}"
+        else -> formatUsageBytes(usedBytes)
+    }
 
     Card(
         modifier = Modifier
@@ -533,32 +538,18 @@ private fun DeviceUsageCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(AppPalette.Mint),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = AppIcons.SystemMonitor,
-                        contentDescription = appText("جهاز متصل", "Connected device"),
-                        tint = RichGreenButton,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-
                 Column(
                     modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.Start
+                    horizontalAlignment = Alignment.Start,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
                         text = deviceName,
@@ -568,159 +559,140 @@ private fun DeviceUsageCard(
                         color = DeepGreenHeader,
                         textAlign = TextAlign.Start
                     )
-                    Spacer(modifier = Modifier.height(1.dp))
                     Text(
-                        text = "IP: ${session.ipAddress}",
+                        text = appText("استهلاك البيانات", "Data usage"),
                         modifier = Modifier.fillMaxWidth(),
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        color = AppPalette.Muted,
-                        textAlign = TextAlign.Start
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "MAC: ${session.macAddress}",
-                        modifier = Modifier.fillMaxWidth(),
-                        fontFamily = FontFamily.Monospace,
                         fontSize = 10.sp,
                         color = AppPalette.Muted,
                         textAlign = TextAlign.Start
+                    )
+                    Text(
+                        text = usageLabel,
+                        modifier = Modifier.fillMaxWidth(),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = DeepGreenHeader,
+                        textAlign = TextAlign.Start
+                    )
+                }
+                Box(contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(
+                        progress = usageFraction,
+                        modifier = Modifier.size(52.dp),
+                        color = usageColor,
+                        trackColor = AppPalette.Mint,
+                        strokeWidth = 5.dp
+                    )
+                    Text(
+                        text = if (quotaBytes > 0L) "${(usageFraction * 100).toInt()}%" else "—",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = DeepGreenHeader
                     )
                 }
             }
 
-            // Professional Voucher Badge matching device/voucher card design
-            Surface(
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                color = AppPalette.Mint.copy(alpha = 0.5f),
-                border = BorderStroke(0.5.dp, RichGreenButton.copy(alpha = 0.3f))
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                TextButton(
+                    onClick = {
+                        editedName = if (deviceName == session.voucherCode) "" else deviceName
+                        showRenameDialog = true
+                    },
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = AppIcons.CreditCard,
-                            contentDescription = null,
-                            tint = RichGreenButton,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = session.voucherCode,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = DeepGreenHeader
-                        )
-                    }
-                    Text(
-                        text = appText("الكرت المستخدم", "Voucher used"),
-                        fontSize = 10.sp,
-                        color = RichGreenButton,
-                        fontWeight = FontWeight.SemiBold
+                    Icon(
+                        imageVector = AppIcons.Edit,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = RichGreenButton
                     )
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(appText("إعادة التسمية", "Rename"), fontSize = 12.sp, color = RichGreenButton)
+                }
+
+                OutlinedButton(
+                    onClick = { showBlockDialog = true },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC62828))
+                ) {
+                    Icon(
+                        imageVector = AppIcons.Block,
+                        contentDescription = null,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(appText("حظر الجهاز", "Block device"), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
 
             HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
 
-            Row(
+            TextButton(
+                onClick = { showDetails = !showDetails },
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(
-                            progress = usageFraction,
-                            modifier = Modifier.size(46.dp),
-                            color = usageColor,
-                            trackColor = AppPalette.Mint,
-                            strokeWidth = 5.dp
-                        )
-                        Text(
-                            text = if (quotaBytes > 0L) "${(usageFraction * 100).toInt()}%" else "—",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = DeepGreenHeader
-                        )
-                    }
-                    Column {
-                        Text(
-                            text = when {
-                                usage == null -> appText("جارٍ القياس...", "Measuring…")
-                                quotaBytes > 0L -> "${formatUsageBytes(usedBytes)} / ${formatUsageBytes(quotaBytes)}"
-                                usage.isMeasured -> formatUsageBytes(usedBytes)
-                                else -> appText("غير متاح", "Not available")
-                            },
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = DeepGreenHeader
-                        )
-                        Text(
-                            text = appText("استهلاك البيانات", "Data usage"),
-                            fontSize = 9.sp,
-                            color = AppPalette.Muted
-                        )
-                        Text(
-                            text = lastUpdateLabel,
-                            fontSize = 9.sp,
-                            color = AppPalette.Muted
-                        )
-                        Text(
-                            text = sourceLabel,
-                            fontSize = 9.sp,
-                            color = AppPalette.Muted
-                        )
-                    }
-                }
+                Text(
+                    text = if (showDetails) appText("إخفاء التفاصيل", "Hide details")
+                    else appText("عرض التفاصيل", "Show details"),
+                    modifier = Modifier.weight(1f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = RichGreenButton,
+                    textAlign = TextAlign.Start
+                )
+                Icon(
+                    imageVector = AppIcons.ChevronRight,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(18.dp)
+                        .rotate(if (showDetails) 270f else 90f),
+                    tint = RichGreenButton
+                )
+            }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+            if (showDetails) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(AppPalette.Mint.copy(alpha = 0.35f))
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    TextButton(
-                        onClick = {
-                            editedName = if (deviceName == session.voucherCode) "" else deviceName
-                            showRenameDialog = true
-                        },
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
-                    ) {
-                        Icon(
-                            imageVector = AppIcons.Edit,
-                            contentDescription = appText("تعديل الاسم", "Rename"),
-                            modifier = Modifier.size(13.dp),
-                            tint = RichGreenButton
-                        )
-                        Spacer(modifier = Modifier.width(3.dp))
-                        Text(appText("الاسم", "Name"), fontSize = 11.sp, color = RichGreenButton)
-                    }
-
-                    OutlinedButton(
-                        onClick = { showBlockDialog = true },
-                        shape = RoundedCornerShape(14.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC62828))
-                    ) {
-                        Icon(
-                            imageVector = AppIcons.Block,
-                            contentDescription = null,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(appText("حظر", "Block"), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                    }
+                    DeviceDetailRow(
+                        label = appText("عنوان IP", "IP address"),
+                        value = session.ipAddress,
+                        monospace = true
+                    )
+                    DeviceDetailRow(
+                        label = appText("عنوان MAC", "MAC address"),
+                        value = session.macAddress,
+                        monospace = true
+                    )
+                    DeviceDetailRow(
+                        label = appText("الكرت المستخدم", "Voucher used"),
+                        value = session.voucherCode,
+                        monospace = true
+                    )
+                    DeviceDetailRow(
+                        label = appText("الاستهلاك", "Usage"),
+                        value = usageLabel
+                    )
+                    DeviceDetailRow(
+                        label = appText("آخر تحديث", "Last updated"),
+                        value = lastUpdate?.let { it } ?: appText("غير متاح", "Not available")
+                    )
+                    DeviceDetailRow(
+                        label = appText("مصدر القراءة", "Reading source"),
+                        value = sourceValue
+                    )
                 }
             }
         }
@@ -771,6 +743,35 @@ private fun DeviceUsageCard(
             dismissButton = {
                 TextButton(onClick = { showBlockDialog = false }) { Text(appText("إلغاء", "Cancel")) }
             }
+        )
+    }
+}
+
+@Composable
+private fun DeviceDetailRow(
+    label: String,
+    value: String,
+    monospace: Boolean = false
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.weight(0.42f),
+            fontSize = 11.sp,
+            color = AppPalette.Muted
+        )
+        Text(
+            text = value,
+            modifier = Modifier.weight(0.58f),
+            fontFamily = if (monospace) FontFamily.Monospace else FontFamily.Default,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            color = DeepGreenHeader,
+            textAlign = TextAlign.End
         )
     }
 }
