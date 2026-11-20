@@ -76,6 +76,7 @@ fun VoucherScreen(
     var showPackageSettings by rememberSaveable { mutableStateOf(false) }
     var dataAmount by rememberSaveable { mutableStateOf("") }
     var selectedDataUnit by rememberSaveable { mutableStateOf(VoucherDataUnit.MB) }
+    var isDeletingExpiredVouchers by remember { mutableStateOf(false) }
     val savedPackageCapacityBytes = viewModel.packageCapacityBytes(packageType)
     var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val packageBudget = remember(packageType, savedPackageCapacityBytes, vouchers, currentTime, packageBudgetEnabled) {
@@ -94,6 +95,19 @@ fun VoucherScreen(
     val expiredVouchers = vouchers.filter { it.isExpiredAt(currentTime) }
 
     val copiedToastText = appText("تم نسخ رمز البطاقة", "Voucher code copied")
+    val allExpiredDeletedText = appText("تم حذف جميع البطاقات المنتهية.", "All expired vouchers were deleted.")
+    val noExpiredDeletedText = appText(
+        "تعذر حذف البطاقات المنتهية. تحقق من صلاحية Root وحالة نقطة الاتصال.",
+        "Could not delete expired vouchers. Check root access and hotspot status."
+    )
+    val partialExpiredDeletePrefix = appText("تم حذف", "Deleted")
+    val partialExpiredDeleteMiddle = appText("من أصل", "of")
+    val expiredVoucherCountLabel = appText("بطاقة منتهية", "expired vouchers")
+    val partialExpiredDeleteSuffix = appText(
+        "تعذر حذف البطاقات المتبقية. تحقق من صلاحية Root وحالة نقطة الاتصال.",
+        "Some remaining vouchers could not be deleted. Check root access and hotspot status."
+    )
+    val deletingExpiredText = appText("جارٍ حذف البطاقات...", "Deleting vouchers…")
     val copyVoucherCode: (String) -> Unit = { code ->
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("Voucher code", code))
@@ -464,18 +478,64 @@ fun VoucherScreen(
                     onCopy = copyVoucherCode,
                     onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
                 )
-                VoucherFilterTab.EXPIRED -> VoucherStatusSection(
-                    title = appText("بطاقات منتهية", "Expired vouchers"),
-                    vouchers = expiredVouchers,
-                    emptyMessage = appText("لا توجد بطاقات منتهية حالياً.", "No expired vouchers." ),
-                    statusTint = if (AppPalette.isDarkMode) Color(0xFFFF8A80) else Color(0xFFC62828),
-                    statusBackground = if (AppPalette.isDarkMode) Color(0xFF492727) else Color(0xFFFFEBEE),
-                    activeVoucherNames = activeVoucherNames,
-                    requireDeleteConfirmation = false,
-                    deleteError = deleteError,
-                    onCopy = copyVoucherCode,
-                    onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
-                )
+                VoucherFilterTab.EXPIRED -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (expiredVouchers.isNotEmpty()) {
+                        OutlinedButton(
+                            onClick = {
+                                if (!isDeletingExpiredVouchers) {
+                                    isDeletingExpiredVouchers = true
+                                    viewModel.deleteExpiredVouchers(expiredVouchers) { deletedCount, totalCount ->
+                                        isDeletingExpiredVouchers = false
+                                        val message = when {
+                                            deletedCount == totalCount -> allExpiredDeletedText
+                                            deletedCount == 0 -> noExpiredDeletedText
+                                            else -> "$partialExpiredDeletePrefix $deletedCount $partialExpiredDeleteMiddle $totalCount $expiredVoucherCountLabel. $partialExpiredDeleteSuffix"
+                                        }
+                                        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isDeletingExpiredVouchers,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC62828))
+                        ) {
+                            if (isDeletingExpiredVouchers) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(17.dp),
+                                    strokeWidth = 2.dp,
+                                    color = Color(0xFFC62828)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(deletingExpiredText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            } else {
+                                Icon(
+                                    imageVector = AppIcons.Delete,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = appText("حذف الكل (${expiredVouchers.size})", "Delete all (${expiredVouchers.size})"),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                    VoucherStatusSection(
+                        title = appText("بطاقات منتهية", "Expired vouchers"),
+                        vouchers = expiredVouchers,
+                        emptyMessage = appText("لا توجد بطاقات منتهية حالياً.", "No expired vouchers." ),
+                        statusTint = if (AppPalette.isDarkMode) Color(0xFFFF8A80) else Color(0xFFC62828),
+                        statusBackground = if (AppPalette.isDarkMode) Color(0xFF492727) else Color(0xFFFFEBEE),
+                        activeVoucherNames = activeVoucherNames,
+                        requireDeleteConfirmation = false,
+                        deleteError = deleteError,
+                        onCopy = copyVoucherCode,
+                        onDelete = { item, onComplete -> viewModel.deleteVoucher(item, onComplete) }
+                    )
+                }
             }
         }
     }

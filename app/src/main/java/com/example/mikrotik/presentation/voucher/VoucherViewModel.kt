@@ -35,6 +35,7 @@ class VoucherViewModel @Inject constructor(
     private val deviceNamePreferences = context.getSharedPreferences("dashboard_device_names", Context.MODE_PRIVATE)
     private val packageBudgetStore = VoucherPackageBudgetStore(context)
     private val createMutex = Mutex()
+    private val deleteMutex = Mutex()
 
     val activeVoucherNames: StateFlow<Map<String, String>> = activeSessionDao.getActiveSessionsFlow()
         .map { sessions ->
@@ -196,56 +197,75 @@ class VoucherViewModel @Inject constructor(
 
     fun deleteVoucher(voucher: VoucherEntity, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
-            _deleteError.value = null
-            try {
-                voucherDao.blockVoucherForDeletion(voucher.code)
-                val latestVoucher = voucherDao.getVoucherByCode(voucher.code)
-                val sessions = activeSessionDao.getSessionsByVoucherCode(voucher.code)
-                val macAddresses = (
-                    sessions.map { it.macAddress } +
-                        listOfNotNull(voucher.boundMacAddress, latestVoucher?.boundMacAddress)
-                    ).distinct()
-
-                val sessionMacAddresses = sessions.map { it.macAddress }.toSet()
-                for (session in sessions) {
-                    val ipBlocked = iptablesManager.blockClientIpAddress(session.ipAddress)
-                    val revoked = iptablesManager.revokeMacAddress(session.macAddress)
-                    val macBlocked = iptablesManager.blockMacAddress(session.macAddress)
-                    if (!ipBlocked || !revoked || !macBlocked) {
-                        _deleteError.value = "تعذر قطع اتصال أحد الأجهزة؛ لم تُحذف البطاقة. تحقق من صلاحية Root وحاول مجدداً."
-                        onComplete(false)
-                        return@launch
-                    }
-                    if (session.isActive) {
-                        hotspotController.requestClientReauthentication(session.macAddress)
-                    }
-                }
-
-                for (macAddress in macAddresses.filterNot { it in sessionMacAddresses }) {
-                    if (!iptablesManager.revokeMacAddress(macAddress)) {
-                        _deleteError.value = "تعذر سحب السماح من أحد الأجهزة؛ لم تُحذف البطاقة. تحقق من صلاحية Root وحاول مجدداً."
-                        onComplete(false)
-                        return@launch
-                    }
-                }
-
-                val usageRecorded = withContext(Dispatchers.IO) {
-                    packageBudgetStore.recordVoucherDeletion(latestVoucher ?: voucher)
-                }
-                if (!usageRecorded) {
-                    _deleteError.value = "تعذر حفظ رصيد الباقة المتبقي؛ لم تُحذف البطاقة."
-                    onComplete(false)
-                    return@launch
-                }
-                sessions.forEach { session ->
-                    activeSessionDao.deleteSession(session.macAddress)
-                }
-                voucherDao.deleteVoucher(voucher.code)
-                onComplete(true)
-            } catch (exception: Exception) {
-                _deleteError.value = "تعذر حذف البطاقة: ${exception.message ?: "خطأ غير معروف"}"
-                onComplete(false)
+            deleteMutex.withLock {
+                onComplete(deleteVoucherInternal(voucher))
             }
+        }
+    }
+
+    fun deleteExpiredVouchers(
+        expiredVouchers: List<VoucherEntity>,
+        onComplete: (deletedCount: Int, totalCount: Int) -> Unit
+    ) {
+        viewModelScope.launch {
+            deleteMutex.withLock {
+                var deletedCount = 0
+                for (voucher in expiredVouchers) {
+                    if (!deleteVoucherInternal(voucher)) break
+                    deletedCount++
+                }
+                onComplete(deletedCount, expiredVouchers.size)
+            }
+        }
+    }
+
+    private suspend fun deleteVoucherInternal(voucher: VoucherEntity): Boolean {
+        _deleteError.value = null
+        return try {
+            voucherDao.blockVoucherForDeletion(voucher.code)
+            val latestVoucher = voucherDao.getVoucherByCode(voucher.code)
+            val sessions = activeSessionDao.getSessionsByVoucherCode(voucher.code)
+            val macAddresses = (
+                sessions.map { it.macAddress } +
+                    listOfNotNull(voucher.boundMacAddress, latestVoucher?.boundMacAddress)
+                ).distinct()
+
+            val sessionMacAddresses = sessions.map { it.macAddress }.toSet()
+            for (session in sessions) {
+                val ipBlocked = iptablesManager.blockClientIpAddress(session.ipAddress)
+                val revoked = iptablesManager.revokeMacAddress(session.macAddress)
+                val macBlocked = iptablesManager.blockMacAddress(session.macAddress)
+                if (!ipBlocked || !revoked || !macBlocked) {
+                    _deleteError.value = "تعذر قطع اتصال أحد الأجهزة؛ لم تُحذف البطاقة. تحقق من صلاحية Root وحاول مجدداً."
+                    return false
+                }
+                if (session.isActive) {
+                    hotspotController.requestClientReauthentication(session.macAddress)
+                }
+            }
+
+            for (macAddress in macAddresses.filterNot { it in sessionMacAddresses }) {
+                if (!iptablesManager.revokeMacAddress(macAddress)) {
+                    _deleteError.value = "تعذر سحب السماح من أحد الأجهزة؛ لم تُحذف البطاقة. تحقق من صلاحية Root وحاول مجدداً."
+                    return false
+                }
+            }
+
+            val usageRecorded = withContext(Dispatchers.IO) {
+                packageBudgetStore.recordVoucherDeletion(latestVoucher ?: voucher)
+            }
+            if (!usageRecorded) {
+                _deleteError.value = "تعذر حفظ رصيد الباقة المتبقي؛ لم تُحذف البطاقة."
+                return false
+            }
+            sessions.forEach { session ->
+                activeSessionDao.deleteSession(session.macAddress)
+            }
+            voucherDao.deleteVoucher(voucher.code)
+            true
+        } catch (exception: Exception) {
+            _deleteError.value = "تعذر حذف البطاقة: ${exception.message ?: "خطأ غير معروف"}"
+            false
         }
     }
 
