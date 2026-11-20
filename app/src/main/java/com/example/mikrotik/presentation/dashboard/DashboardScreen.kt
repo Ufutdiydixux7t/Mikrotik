@@ -530,31 +530,31 @@ private fun DeviceUsageCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, WatermarkLineColor, RoundedCornerShape(14.dp)),
-        shape = RoundedCornerShape(14.dp),
+            .border(1.dp, WatermarkLineColor, RoundedCornerShape(12.dp)),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = SeamlessCardBg),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(
                     modifier = Modifier.weight(1f),
                     horizontalAlignment = Alignment.Start,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     Text(
                         text = deviceName,
                         modifier = Modifier.fillMaxWidth(),
-                        fontSize = 15.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = DeepGreenHeader,
                         textAlign = TextAlign.Start
@@ -569,7 +569,7 @@ private fun DeviceUsageCard(
                     Text(
                         text = usageLabel,
                         modifier = Modifier.fillMaxWidth(),
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = DeepGreenHeader,
                         textAlign = TextAlign.Start
@@ -577,15 +577,15 @@ private fun DeviceUsageCard(
                 }
                 Box(contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(
-                        progress = usageFraction,
-                        modifier = Modifier.size(52.dp),
+                        progress = { usageFraction },
+                        modifier = Modifier.size(44.dp),
                         color = usageColor,
                         trackColor = AppPalette.Mint,
-                        strokeWidth = 5.dp
+                        strokeWidth = 4.dp
                     )
                     Text(
                         text = if (quotaBytes > 0L) "${(usageFraction * 100).toInt()}%" else "—",
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = DeepGreenHeader
                     )
@@ -596,38 +596,57 @@ private fun DeviceUsageCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                TextButton(
+                OutlinedButton(
                     onClick = {
                         editedName = if (deviceName == session.voucherCode) "" else deviceName
                         showRenameDialog = true
                     },
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(36.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, RichGreenButton.copy(alpha = 0.7f)),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = RichGreenButton)
                 ) {
                     Icon(
                         imageVector = AppIcons.Edit,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(14.dp),
                         tint = RichGreenButton
                     )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(appText("إعادة التسمية", "Rename"), fontSize = 12.sp, color = RichGreenButton)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = appText("إعادة التسمية", "Rename"),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = RichGreenButton
+                    )
                 }
 
                 OutlinedButton(
                     onClick = { showBlockDialog = true },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(36.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, Color(0xFFC62828).copy(alpha = 0.7f)),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC62828))
                 ) {
                     Icon(
                         imageVector = AppIcons.Block,
                         contentDescription = null,
-                        modifier = Modifier.size(15.dp)
+                        modifier = Modifier.size(14.dp),
+                        tint = Color(0xFFC62828)
                     )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(appText("حظر الجهاز", "Block device"), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = appText("حظر الجهاز", "Block device"),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFFC62828)
+                    )
                 }
             }
 
@@ -636,13 +655,13 @@ private fun DeviceUsageCard(
             TextButton(
                 onClick = { showDetails = !showDetails },
                 modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
             ) {
                 Text(
                     text = if (showDetails) appText("إخفاء التفاصيل", "Hide details")
                     else appText("عرض التفاصيل", "Show details"),
                     modifier = Modifier.weight(1f),
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = RichGreenButton,
                     textAlign = TextAlign.Start
@@ -651,7 +670,7 @@ private fun DeviceUsageCard(
                     imageVector = AppIcons.ChevronRight,
                     contentDescription = null,
                     modifier = Modifier
-                        .size(18.dp)
+                        .size(16.dp)
                         .rotate(if (showDetails) 270f else 90f),
                     tint = RichGreenButton
                 )
@@ -661,10 +680,10 @@ private fun DeviceUsageCard(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .background(AppPalette.Mint.copy(alpha = 0.35f))
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     DeviceDetailRow(
                         label = appText("عنوان IP", "IP address"),
@@ -927,14 +946,18 @@ private fun BlockedDeviceCard(
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    TextButton(
+                    OutlinedButton(
                         onClick = {
                             editedName = displayName
                             showRenameDialog = true
                         },
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                        modifier = Modifier.height(34.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, RichGreenButton.copy(alpha = 0.7f)),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = RichGreenButton)
                     ) {
                         Icon(
                             imageVector = AppIcons.Edit,
@@ -942,19 +965,20 @@ private fun BlockedDeviceCard(
                             modifier = Modifier.size(13.dp),
                             tint = RichGreenButton
                         )
-                        Spacer(modifier = Modifier.width(3.dp))
-                        Text(appText("الاسم", "Name"), fontSize = 11.sp, color = RichGreenButton)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(appText("إعادة التسمية", "Rename"), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = RichGreenButton)
                     }
                     Button(
                         onClick = onUnblock,
+                        modifier = Modifier.height(34.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = RichGreenButton),
-                        shape = RoundedCornerShape(14.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
                     ) {
                         Icon(
                             imageVector = AppIcons.Login,
                             contentDescription = null,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(13.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(appText("رفع الحظر", "Unblock"), fontSize = 11.sp, color = Color.White)
