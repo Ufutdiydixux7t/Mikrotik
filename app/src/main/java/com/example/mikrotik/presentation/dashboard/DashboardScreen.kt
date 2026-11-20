@@ -86,7 +86,6 @@ private fun DashboardContent(viewModel: DashboardViewModel) {
     ) {
         AppTopBar(
             title = appText("لوحة التحكم وإدارة الشبكة", "Network dashboard"),
-            subtitle = "AL RABDI NET",
             startIcon = AppIcons.BarChart
         )
 

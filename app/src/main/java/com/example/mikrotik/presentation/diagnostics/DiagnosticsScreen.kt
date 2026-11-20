@@ -113,7 +113,6 @@ fun DiagnosticsScreen(
                     SettingsDestination.PackageCapacity -> appText("حجم الباقة", "Package capacity")
                     SettingsDestination.Backup -> appText("النسخ الاحتياطي", "Backup & restore")
                 },
-                subtitle = "AL RABDI NET",
                 startIcon = AppIcons.SettingsGear
             )
         }

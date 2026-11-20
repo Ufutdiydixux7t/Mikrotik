@@ -33,6 +33,11 @@ class HomeViewModel @Inject constructor(
     private val networkController: NetworkController
 ) : ViewModel() {
 
+    private val deviceNamePreferences = context.getSharedPreferences(
+        "dashboard_device_names",
+        Context.MODE_PRIVATE
+    )
+
     private val _hotspotState = MutableStateFlow<HotspotState>(HotspotState.Disabled)
     val hotspotState: StateFlow<HotspotState> = _hotspotState.asStateFlow()
 
@@ -76,7 +81,7 @@ class HomeViewModel @Inject constructor(
             _connectedDevices.value = if (iface == null) {
                 emptyList()
             } else {
-                clientDiscoveryManager.getConnectedDevices(iface)
+                discoverConnectedDevices(iface)
             }
 
             // 3. WiFi & Mobile Data status via Root
@@ -154,7 +159,7 @@ class HomeViewModel @Inject constructor(
                 _connectedDevices.value = if (iface == null) {
                     emptyList()
                 } else {
-                    clientDiscoveryManager.getConnectedDevices(iface)
+                    discoverConnectedDevices(iface)
                 }
                 _isWifiActive.value = networkController.isWifiEnabled()
                 _isDataActive.value = networkController.isMobileDataEnabled()
@@ -173,5 +178,17 @@ class HomeViewModel @Inject constructor(
             isAvailable = homeUsage.counterAvailable
         )
     }
+
+    private suspend fun discoverConnectedDevices(interfaceName: String): List<ConnectedDevice> =
+        clientDiscoveryManager.getConnectedDevices(interfaceName).map { device ->
+            val savedName = deviceNamePreferences
+                .getString(deviceNameKey(device.macAddress), null)
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+            if (savedName == null) device else device.copy(deviceName = savedName)
+        }
+
+    private fun deviceNameKey(macAddress: String): String =
+        "name_${macAddress.lowercase().replace(':', '_')}"
 
 }

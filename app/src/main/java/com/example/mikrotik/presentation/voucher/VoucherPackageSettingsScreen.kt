@@ -87,7 +87,6 @@ fun VoucherPackageSettingsScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         AppTopBar(
             title = appText("حجم الباقة", "Package capacity"),
-            subtitle = "AL RABDI NET",
             startIcon = AppIcons.ChevronRight,
             endIcon = null,
             onStartClick = onBack

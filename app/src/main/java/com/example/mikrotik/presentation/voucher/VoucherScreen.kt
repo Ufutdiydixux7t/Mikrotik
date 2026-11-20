@@ -141,7 +141,6 @@ fun VoucherScreen(
     ) {
         AppTopBar(
             title = appText("إنشاء بطاقة", "Create voucher"),
-            subtitle = "AL RABDI NET",
             startIcon = AppIcons.CreditCard
         )
 

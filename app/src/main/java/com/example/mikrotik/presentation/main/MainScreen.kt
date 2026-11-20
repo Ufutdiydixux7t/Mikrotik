@@ -190,7 +190,7 @@ fun PlaceholderTabScreen(title: String, description: String) {
         modifier = Modifier
             .fillMaxSize()
     ) {
-        AppTopBar(title = title, subtitle = "AL RABDI NET", startIcon = AppIcons.Info)
+        AppTopBar(title = title, startIcon = AppIcons.Info)
 
         // Content Area with Seamless Card
         Column(

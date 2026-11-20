@@ -76,7 +76,6 @@ fun HomeScreen(
         topBar = {
             AppTopBar(
                 title = appText("الرئيسية", "Home"),
-                subtitle = "AL RABDI NET",
                 startIcon = AppIcons.Home,
                 endIcon = AppIcons.Menu,
                 onEndClick = onOpenDiagnostics
@@ -406,51 +405,55 @@ fun DeviceItemRow(device: ConnectedDevice) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 14.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = AppIcons.Smartphone,
-                contentDescription = appText("هاتف متصل", "Connected device"),
-                tint = DeepGreenHeader,
-                modifier = Modifier.size(34.dp)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
             Column(
                 modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.End
+                horizontalAlignment = Alignment.Start
             ) {
                 Text(
                     text = device.deviceName ?: appText("جهاز متصل", "Connected device"),
+                    modifier = Modifier.fillMaxWidth(),
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
-                    color = DeepGreenHeader
+                    color = DeepGreenHeader,
+                    textAlign = TextAlign.Start
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.Start
                 ) {
-                    Text(
-                        text = device.ipAddress,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        color = AppPalette.Muted
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(PillGreenDot)
-                    )
                     Text(
                         text = if (device.connectionState.equals("CONNECTED", ignoreCase = true)) appText("متصل", "Connected") else device.connectionState,
                         fontSize = 12.sp,
                         color = PillGreenDot,
                         fontWeight = FontWeight.SemiBold
                     )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(PillGreenDot)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = device.ipAddress,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        color = AppPalette.Muted
+                    )
                 }
             }
+            Icon(
+                imageVector = AppIcons.Smartphone,
+                contentDescription = appText("هاتف متصل", "Connected device"),
+                tint = DeepGreenHeader,
+                modifier = Modifier.size(34.dp)
+            )
         }
     }
 }
