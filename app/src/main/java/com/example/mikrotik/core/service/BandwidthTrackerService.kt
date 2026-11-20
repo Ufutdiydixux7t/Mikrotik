@@ -16,6 +16,8 @@ import com.example.mikrotik.core.hotspot.HotspotController
 import com.example.mikrotik.core.network.IptablesManager
 import com.example.mikrotik.core.network.UsageCounterMath
 import com.example.mikrotik.core.network.UsageMeasurementStore
+import com.example.mikrotik.core.network.UsageSampleMetadata
+import com.example.mikrotik.core.network.UsageSampleSource
 import com.example.mikrotik.core.session.SessionTransitionLock
 import com.example.mikrotik.data.db.dao.ActiveSessionDao
 import com.example.mikrotik.data.db.dao.BlockedMacDao
@@ -53,7 +55,8 @@ class BandwidthTrackerService : Service() {
     private var lastWakeLockRenewalAt = 0L
     private var trackingWakeLock: PowerManager.WakeLock? = null
     private val lastCounterDiagnosticAt = mutableMapOf<String, Long>()
-    private val usagePreferences by lazy { getSharedPreferences("voucher_usage_counters", MODE_PRIVATE) }
+    private val usagePreferences by lazy { getSharedPreferences(UsageSampleMetadata.PREFERENCES_NAME, MODE_PRIVATE) }
+    private val lastUsageSampleMetadataWriteAt = mutableMapOf<String, Long>()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -197,6 +200,12 @@ class BandwidthTrackerService : Service() {
             } else {
                 null
             }
+            val sampleIdentity = UsageSampleMetadata.identity(mac, voucher.code)
+            val sampleSource = UsageSampleMetadata.source(
+                wifiAvailable = wifiCounterBytes != null,
+                iptablesAvailable = iptablesCounterBytes != null
+            )
+            val sampledAtMillis = System.currentTimeMillis()
             if (wifiCounterBytes != null || iptablesCounterBytes != null) {
                 val identity = "${voucher.code}_${mac.lowercase().replace(':', '_')}"
                 val initializedKey = "counter_v2_initialized_$identity"
@@ -206,6 +215,17 @@ class BandwidthTrackerService : Service() {
                 val iptablesTotalKey = "total_${identity}_iptables"
                 val wasInitialized = usagePreferences.getBoolean(initializedKey, false)
                 val usageEditor = usagePreferences.edit()
+                val metadataSourceKey = UsageSampleMetadata.sourcePreferenceKey(sampleIdentity)
+                val metadataLastWriteAt = lastUsageSampleMetadataWriteAt[sampleIdentity] ?: 0L
+                val shouldWriteSampleMetadata =
+                    usagePreferences.getString(metadataSourceKey, null) != sampleSource.name ||
+                        metadataLastWriteAt == 0L ||
+                        nowElapsed - metadataLastWriteAt >= USAGE_SAMPLE_METADATA_WRITE_INTERVAL_MS
+                if (shouldWriteSampleMetadata) {
+                    usageEditor
+                        .putString(metadataSourceKey, sampleSource.name)
+                        .putLong(UsageSampleMetadata.timestampPreferenceKey(sampleIdentity), sampledAtMillis)
+                }
                 var addedBytes = 0L
                 var reconciledUsage = voucher.bytesUsedSoFar
 
@@ -247,6 +267,9 @@ class BandwidthTrackerService : Service() {
                         .putLong(iptablesTotalKey, iptablesTotal)
                 }
                 usageEditor.apply()
+                if (shouldWriteSampleMetadata) {
+                    lastUsageSampleMetadataWriteAt[sampleIdentity] = nowElapsed
+                }
 
                 val lastDiagnosticAt = lastCounterDiagnosticAt[identity] ?: 0L
                 if (nowElapsed - lastDiagnosticAt >= COUNTER_DIAGNOSTIC_INTERVAL_MS) {
@@ -269,6 +292,12 @@ class BandwidthTrackerService : Service() {
                     UsageMeasurementStore.recordVoucherUsage(this@BandwidthTrackerService, addedBytes)
                 }
             } else {
+                recordUsageSampleMetadata(
+                    identity = sampleIdentity,
+                    source = sampleSource,
+                    sampledAtMillis = sampledAtMillis,
+                    elapsedRealtime = nowElapsed
+                )
                 Log.w("BandwidthTracker", "Could not read traffic counters for $mac; quota usage was not changed")
             }
 
@@ -330,6 +359,26 @@ class BandwidthTrackerService : Service() {
         if (!UsageMeasurementStore.sampleSourceTraffic(this)) {
             Log.d("BandwidthTracker", "Active upstream traffic counter is not available")
         }
+    }
+
+    private fun recordUsageSampleMetadata(
+        identity: String,
+        source: UsageSampleSource,
+        sampledAtMillis: Long,
+        elapsedRealtime: Long
+    ) {
+        val sourceKey = UsageSampleMetadata.sourcePreferenceKey(identity)
+        val previousSource = usagePreferences.getString(sourceKey, null)
+        val lastWriteAt = lastUsageSampleMetadataWriteAt[identity] ?: 0L
+        val sourceChanged = previousSource != source.name
+        val intervalElapsed = lastWriteAt == 0L || elapsedRealtime - lastWriteAt >= USAGE_SAMPLE_METADATA_WRITE_INTERVAL_MS
+        if (!sourceChanged && !intervalElapsed) return
+
+        usagePreferences.edit()
+            .putString(sourceKey, source.name)
+            .putLong(UsageSampleMetadata.timestampPreferenceKey(identity), sampledAtMillis)
+            .apply()
+        lastUsageSampleMetadataWriteAt[identity] = elapsedRealtime
     }
 
     private suspend fun getCachedApInterface(): String? {
@@ -419,6 +468,7 @@ class BandwidthTrackerService : Service() {
         const val SOURCE_USAGE_SAMPLE_INTERVAL_MS = 5_000L
         const val IPTABLES_VERIFICATION_INTERVAL_MS = 2_000L
         const val COUNTER_DIAGNOSTIC_INTERVAL_MS = 30_000L
+        const val USAGE_SAMPLE_METADATA_WRITE_INTERVAL_MS = 5_000L
         const val WAKE_LOCK_TIMEOUT_MS = 10 * 60 * 1_000L
         const val WAKE_LOCK_RENEW_INTERVAL_MS = 5 * 60 * 1_000L
     }

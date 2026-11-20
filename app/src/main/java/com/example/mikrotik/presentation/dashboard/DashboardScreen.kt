@@ -27,6 +27,10 @@ import com.example.mikrotik.presentation.ui.localization.LocalAppLanguage
 import com.example.mikrotik.presentation.ui.localization.appText
 import com.example.mikrotik.presentation.ui.theme.AppIcons
 import com.example.mikrotik.ui.theme.AppPalette
+import com.example.mikrotik.core.network.UsageSampleSource
+import java.text.DateFormat
+import java.util.Date
+import java.util.Locale
 
 private val DeepGreenHeader get() = AppPalette.TextNavy
 private val RichGreenButton get() = AppPalette.Teal
@@ -492,6 +496,7 @@ private fun DeviceUsageCard(
     onRename: (String, String) -> Unit
 ) {
     val deviceName = viewModel.getDeviceName(session.macAddress, session.voucherCode)
+    val language = LocalAppLanguage.current
     val quotaBytes = usage?.quotaBytes ?: 0L
     val usedBytes = (usage?.bytesUsed ?: 0L).coerceAtLeast(0L)
     val usageFraction = if (quotaBytes > 0L) {
@@ -502,6 +507,16 @@ private fun DeviceUsageCard(
         usageFraction >= 0.7f -> Color(0xFFF9A825)
         else -> RichGreenButton
     }
+    val lastUpdate = usage?.lastSampleAtMillis?.let { formatSampleTimestamp(it, language) }
+    val lastUpdateLabel = lastUpdate?.let { appText("آخر تحديث: $it", "Last updated: $it") }
+        ?: appText("آخر تحديث: غير متاح", "Last updated: Not available")
+    val sourceValue = when (usage?.sampleSource ?: UsageSampleSource.UNAVAILABLE) {
+        UsageSampleSource.WIFI_STATION -> appText("محطة Wi-Fi", "Wi-Fi station")
+        UsageSampleSource.IPTABLES -> "iptables"
+        UsageSampleSource.BOTH -> appText("كلاهما", "Both")
+        UsageSampleSource.UNAVAILABLE -> appText("غير متاح", "Unavailable")
+    }
+    val sourceLabel = appText("مصدر القراءة: $sourceValue", "Reading source: $sourceValue")
 
     var showRenameDialog by remember(session.macAddress) { mutableStateOf(false) }
     var showBlockDialog by remember(session.macAddress) { mutableStateOf(false) }
@@ -658,6 +673,16 @@ private fun DeviceUsageCard(
                             fontSize = 9.sp,
                             color = AppPalette.Muted
                         )
+                        Text(
+                            text = lastUpdateLabel,
+                            fontSize = 9.sp,
+                            color = AppPalette.Muted
+                        )
+                        Text(
+                            text = sourceLabel,
+                            fontSize = 9.sp,
+                            color = AppPalette.Muted
+                        )
                     }
                 }
 
@@ -755,6 +780,12 @@ private fun formatUsageBytes(bytes: Long): String = when {
     bytes >= 1024L * 1024L -> "${"%.1f".format(bytes / (1024.0 * 1024))} MB"
     bytes >= 1024L -> "${"%.1f".format(bytes / 1024.0)} KB"
     else -> "$bytes B"
+}
+
+private fun formatSampleTimestamp(timestampMillis: Long, language: AppLanguage): String {
+    val locale = if (language == AppLanguage.ARABIC) Locale("ar") else Locale.ENGLISH
+    return DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, locale)
+        .format(Date(timestampMillis))
 }
 
 @Composable

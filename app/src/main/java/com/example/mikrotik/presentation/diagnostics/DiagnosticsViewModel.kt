@@ -9,13 +9,16 @@ import com.example.mikrotik.core.captive.PortalTheme
 import com.example.mikrotik.core.network.IptablesManager
 import com.example.mikrotik.core.root.RootDiagnostics
 import com.example.mikrotik.core.root.SystemDiagnosticReport
+import com.example.mikrotik.data.backup.ManualBackupManager
 import com.example.mikrotik.data.db.dao.VoucherDao
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 sealed class DiagnosticsUiState {
@@ -39,7 +42,8 @@ class DiagnosticsViewModel @Inject constructor(
     private val rootDiagnostics: RootDiagnostics,
     private val voucherDao: VoucherDao,
     private val portalAppearanceSettings: PortalAppearanceSettings,
-    private val iptablesManager: IptablesManager
+    private val iptablesManager: IptablesManager,
+    private val manualBackupManager: ManualBackupManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<DiagnosticsUiState>(DiagnosticsUiState.Loading)
@@ -51,6 +55,14 @@ class DiagnosticsViewModel @Inject constructor(
     private val _phoneInternetBlock = MutableStateFlow(PhoneInternetBlockUiState())
     val phoneInternetBlock: StateFlow<PhoneInternetBlockUiState> = _phoneInternetBlock.asStateFlow()
 
+    suspend fun exportBackupJson(): String = withContext(Dispatchers.IO) {
+        manualBackupManager.exportJson()
+    }
+
+    suspend fun restoreBackupJson(json: String): ManualBackupManager.RestoreSummary = withContext(Dispatchers.IO) {
+        manualBackupManager.restoreJson(json)
+    }
+
     init {
         runDiagnostics()
         refreshPhoneInternetBlockStatus()
@@ -61,7 +73,7 @@ class DiagnosticsViewModel @Inject constructor(
             _uiState.value = DiagnosticsUiState.Loading
             try {
                 val report = rootDiagnostics.runSafeDiagnostics()
-                
+
                 // Test database connectivity by reading vouchers flow count
                 val dbStatus = try {
                     voucherDao.getVoucherByCode("test_code")

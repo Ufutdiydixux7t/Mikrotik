@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mikrotik.core.hotspot.HotspotController
 import com.example.mikrotik.core.network.IptablesManager
+import com.example.mikrotik.core.network.UsageSampleMetadata
+import com.example.mikrotik.core.network.UsageSampleSource
 import com.example.mikrotik.data.db.dao.ActiveSessionDao
 import com.example.mikrotik.data.db.dao.BlockedMacDao
 import com.example.mikrotik.data.db.dao.VoucherDao
@@ -26,7 +28,9 @@ data class DeviceUsageInfo(
     val bytesUsed: Long,
     val quotaBytes: Long,
     val displayName: String,
-    val isMeasured: Boolean
+    val isMeasured: Boolean,
+    val lastSampleAtMillis: Long? = null,
+    val sampleSource: UsageSampleSource = UsageSampleSource.UNAVAILABLE
 )
 
 @HiltViewModel
@@ -40,6 +44,10 @@ class DashboardViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val deviceNamePreferences = context.getSharedPreferences("dashboard_device_names", Context.MODE_PRIVATE)
+    private val usageSamplePreferences = context.getSharedPreferences(
+        UsageSampleMetadata.PREFERENCES_NAME,
+        Context.MODE_PRIVATE
+    )
 
     val activeSessions: StateFlow<List<ActiveSessionEntity>> = activeSessionDao.getActiveSessionsFlow()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -90,11 +98,24 @@ class DashboardViewModel @Inject constructor(
         val savedName = deviceNamePreferences.getString(nameKey(session.macAddress), null)
             ?.trim()?.takeIf { it.isNotEmpty() }
         val detectedName = savedName ?: session.voucherCode
+        val sampleIdentity = UsageSampleMetadata.identity(session.macAddress, session.voucherCode)
+        val timestampKey = UsageSampleMetadata.timestampPreferenceKey(sampleIdentity)
+        val sourceKey = UsageSampleMetadata.sourcePreferenceKey(sampleIdentity)
+        val lastSampleAtMillis = if (usageSamplePreferences.contains(timestampKey)) {
+            usageSamplePreferences.getLong(timestampKey, 0L).takeIf { it > 0L }
+        } else {
+            null
+        }
+        val sampleSource = usageSamplePreferences.getString(sourceKey, null)
+            ?.let { stored -> runCatching { UsageSampleSource.valueOf(stored) }.getOrNull() }
+            ?: UsageSampleSource.UNAVAILABLE
         return DeviceUsageInfo(
             bytesUsed = maxOf(storedVoucherBytes, sessionFallbackBytes).coerceAtLeast(0L),
             quotaBytes = voucher?.dataLimitBytes?.coerceAtLeast(0L) ?: 0L,
             displayName = detectedName,
-            isMeasured = voucher != null || sessionFallbackBytes > 0L
+            isMeasured = voucher != null || sessionFallbackBytes > 0L,
+            lastSampleAtMillis = lastSampleAtMillis,
+            sampleSource = sampleSource
         )
     }
 

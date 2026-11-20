@@ -60,10 +60,11 @@ class PortalAppearanceSettings @Inject constructor(
     private val preferences = context.getSharedPreferences("portal_appearance", Context.MODE_PRIVATE)
 
     fun current(): PortalAppearance {
-        val name = preferences.getString(KEY_NAME, DEFAULT_NAME)
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: DEFAULT_NAME
+        val storedName = preferences.getString(KEY_NAME, null)?.trim()
+        val name = when {
+            storedName.isNullOrEmpty() || storedName == LEGACY_DEFAULT_NAME -> DEFAULT_NAME
+            else -> storedName
+        }
         val theme = PortalTheme.fromStorageKey(preferences.getString(KEY_THEME, PortalTheme.GREEN.storageKey))
         return PortalAppearance(name = name, theme = theme)
     }
@@ -77,8 +78,9 @@ class PortalAppearanceSettings @Inject constructor(
     }
 
     companion object {
-        const val DEFAULT_NAME = "AL-MADDI NET"
+        const val DEFAULT_NAME = "Mikrotik"
         const val MAX_NAME_LENGTH = 40
+        private const val LEGACY_DEFAULT_NAME = "AL-MADDI NET"
         private const val KEY_NAME = "portal_name"
         private const val KEY_THEME = "portal_theme"
     }

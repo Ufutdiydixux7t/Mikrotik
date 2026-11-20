@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -61,6 +62,10 @@ fun MainScreen(
     onLanguageChange: (AppLanguage) -> Unit
 ) {
     var currentTab by remember { mutableStateOf(BottomTab.HOME) }
+
+    BackHandler(enabled = currentTab != BottomTab.HOME) {
+        currentTab = BottomTab.HOME
+    }
 
     AppBackground {
         Scaffold(

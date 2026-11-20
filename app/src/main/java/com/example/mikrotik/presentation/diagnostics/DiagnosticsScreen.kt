@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.core.net.toUri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -71,6 +72,7 @@ sealed class SettingsDestination {
     object AppAppearance : SettingsDestination()
     object AppLock : SettingsDestination()
     object PackageCapacity : SettingsDestination()
+    object Backup : SettingsDestination()
 }
 
 @Composable
@@ -89,6 +91,10 @@ fun DiagnosticsScreen(
     val uiState by viewModel.uiState.collectAsState()
     var currentDestination by remember { mutableStateOf<SettingsDestination>(SettingsDestination.MainSettings) }
 
+    BackHandler(enabled = currentDestination != SettingsDestination.MainSettings) {
+        currentDestination = SettingsDestination.MainSettings
+    }
+
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
@@ -105,6 +111,7 @@ fun DiagnosticsScreen(
                     SettingsDestination.AppAppearance -> appText("ألوان التطبيق", "App colors")
                     SettingsDestination.AppLock -> appText("قفل التطبيق", "App lock")
                     SettingsDestination.PackageCapacity -> appText("حجم الباقة", "Package capacity")
+                    SettingsDestination.Backup -> appText("النسخ الاحتياطي", "Backup & restore")
                 },
                 subtitle = "AL RABDI NET",
                 startIcon = AppIcons.SettingsGear
@@ -168,8 +175,7 @@ fun DiagnosticsScreen(
                 SettingsDestination.AppAppearance -> {
                     AppColorThemeSettingsScreen(
                         selectedTheme = appColorTheme,
-                        onThemeSelected = onAppColorThemeChange,
-                        onBack = { currentDestination = SettingsDestination.MainSettings }
+                        onThemeSelected = onAppColorThemeChange
                     )
                 }
                 SettingsDestination.AppLock -> {
@@ -199,6 +205,12 @@ fun DiagnosticsScreen(
                             }
                             saved
                         }
+                    )
+                }
+                SettingsDestination.Backup -> {
+                    BackupSettingsScreen(
+                        viewModel = viewModel,
+                        onBack = { currentDestination = SettingsDestination.MainSettings }
                     )
                 }
             }
@@ -520,6 +532,17 @@ fun MainSettingsList(
 
                 HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
 
+                SettingsItemRow(
+                    icon = AppIcons.Inventory,
+                    iconContainerColor = AppPalette.Mint,
+                    iconTintColor = RichGreenButton,
+                    title = appText("النسخ الاحتياطي", "Backup & restore"),
+                    subtitle = appText("تصدير أو دمج نسخة بيانات يدوياً", "Export or merge a data backup manually"),
+                    onClick = { onNavigate(SettingsDestination.Backup) }
+                )
+
+                HorizontalDivider(color = WatermarkLineColor, thickness = 0.5.dp)
+
                 // About Us
                 SettingsItemRow(
                     icon = AppIcons.Info,
@@ -788,7 +811,7 @@ private fun PortalAppearanceSettingsScreen(
                     onValueChange = viewModel::updatePortalName,
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text(appText("اسم واجهة تسجيل الدخول", "Sign-in page name")) },
-                    placeholder = { Text("Example: AL-MADDI NET") },
+                    placeholder = { Text("Example: Mikrotik") },
                     singleLine = true,
                     supportingText = {
                         Text(appText(
@@ -973,7 +996,7 @@ fun AboutUsDetailScreen(
                     color = DeepGreenHeader
                 )
                 Text(
-                    text = appText("م/ محمد المدي", "Eng. Mohammad Al-Madhi"),
+                    text = appText("م/ محمد المدي", "MOHAMMED AL-MADDI"),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = DeepGreenHeader
