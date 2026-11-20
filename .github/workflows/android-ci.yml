@@ -40,7 +40,7 @@ jobs:
           packages: platform-tools
 
       - name: Install Android SDK packages
-        run: sdkmanager --install "platforms;android-37" "build-tools;37.0.0"
+        run: sdkmanager --install "platforms;android-37" "build-tools;37.0.0" --channel=3
 
       - name: Run unit tests and assemble debug APK
         run: |
