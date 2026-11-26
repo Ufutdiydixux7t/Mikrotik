@@ -1,5 +1,6 @@
 package com.example.mikrotik.presentation.login
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.mikrotik.core.captive.CaptivePortalServer
@@ -40,8 +41,12 @@ class LoginViewModel @Inject constructor(
 
     fun checkAndStartServer() {
         viewModelScope.launch {
-            if (!captivePortalServer.isServerRunning()) {
-                captivePortalServer.startServer()
+            try {
+                if (!captivePortalServer.isServerRunning()) {
+                    captivePortalServer.startServer()
+                }
+            } catch (e: Exception) {
+                Log.e("LoginViewModel", "Failed to start captive portal server", e)
             }
             _isServerRunning.value = captivePortalServer.isServerRunning()
             _serverIp.value = captivePortalServer.getActiveHotspotIpAddress()
@@ -58,14 +63,18 @@ class LoginViewModel @Inject constructor(
                 try {
                     val url = URL(urlStr)
                     val conn = url.openConnection() as HttpURLConnection
-                    conn.connectTimeout = 3000
-                    conn.readTimeout = 3000
-                    conn.requestMethod = "GET"
-                    val code = conn.responseCode
-                    if (code == 200) {
-                        "السيرفر يعمل بنجاح! (HTTP 200 OK - /health)"
-                    } else {
-                        "استجاب السيرفر برمز: $code"
+                    try {
+                        conn.connectTimeout = 3000
+                        conn.readTimeout = 3000
+                        conn.requestMethod = "GET"
+                        val code = conn.responseCode
+                        if (code == 200) {
+                            "السيرفر يعمل بنجاح! (HTTP 200 OK - /health)"
+                        } else {
+                            "استجاب السيرفر برمز: $code"
+                        }
+                    } finally {
+                        conn.disconnect()
                     }
                 } catch (e: Exception) {
                     "فشل الاتصال: ${e.message}"
